@@ -1268,9 +1268,14 @@ impl HistoryDb {
         )?;
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_suggestion_audit_session_id ON suggestion_audit(session_id)")?;
 
-        // Record schema version
+        // Record schema version.
+        // Use INSERT OR REPLACE so that reopening a file-backed database whose
+        // pager already contains the schema_version row does not fail with a
+        // PRIMARY KEY constraint error (fsqlite may replay `create_v1_schema`
+        // when the schema_version table appears empty in the in-memory catalog
+        // but its B-tree pages are already populated on disk).
         self.conn.execute_with_params(
-            "INSERT INTO schema_version (version, description, last_prune_at) VALUES (?1, ?2, NULL)",
+            "INSERT OR REPLACE INTO schema_version (version, description, last_prune_at) VALUES (?1, ?2, NULL)",
             &[
                 SqliteValue::Integer(i64::from(CURRENT_SCHEMA_VERSION)),
                 SqliteValue::Text("Initial schema".to_string()),
@@ -1323,7 +1328,7 @@ impl HistoryDb {
         }
 
         self.conn.execute_with_params(
-            "INSERT INTO schema_version (version, description) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(2),
                 SqliteValue::Text("Add schema version descriptions".to_string()),
@@ -1356,7 +1361,7 @@ impl HistoryDb {
 
         // Record migration
         self.conn.execute_with_params(
-            "INSERT INTO schema_version (version, description) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(3),
                 SqliteValue::Text("Add stats cache and auto-prune tracking".to_string()),
@@ -1396,7 +1401,7 @@ impl HistoryDb {
 
         // Record migration
         self.conn.execute_with_params(
-            "INSERT INTO schema_version (version, description) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(4),
                 SqliteValue::Text("Add rule_id column and index".to_string()),
@@ -1437,7 +1442,7 @@ impl HistoryDb {
 
         // Record migration
         self.conn.execute_with_params(
-            "INSERT INTO schema_version (version, description) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(5),
                 SqliteValue::Text(
@@ -1785,10 +1790,18 @@ impl HistoryDb {
             // Manually rebuild FTS by inserting all existing commands.
             // fsqlite FTS5 does not support the control column syntax
             // INSERT INTO fts(fts) VALUES('rebuild'), so we do it explicitly.
-            // MUST explicitly provide rowid to keep FTS index synchronized with commands table.
-            self.conn.execute(
-                "INSERT INTO commands_fts(rowid, command) SELECT id, command FROM commands",
-            )?;
+            // We iterate row-by-row because fsqlite's planner does not recognise
+            // the implicit `rowid` pseudo-column in INSERT ... SELECT for virtual
+            // tables, whereas the VALUES path (used by the trigger and here) works
+            // because the VDBE codegen skips column-name validation for VALUES.
+            let rows = self.conn.query("SELECT id, command FROM commands")?;
+            for row in &rows {
+                let vals = row.values();
+                self.conn.execute_with_params(
+                    "INSERT INTO commands_fts(rowid, command) VALUES (?1, ?2)",
+                    &[vals[0].clone(), vals[1].clone()],
+                )?;
+            }
 
             // Get the count of re-indexed entries
             let fts_row = self.conn.query_row("SELECT COUNT(*) FROM commands_fts")?;

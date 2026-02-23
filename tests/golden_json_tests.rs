@@ -374,7 +374,7 @@ fn golden_json_severity_values() {
 fn run_robot_mode(command: &str) -> Option<Value> {
     use std::process::Command;
 
-    let output = Command::new("./target/release/dcg")
+    let output = Command::new(env!("CARGO_BIN_EXE_dcg"))
         .args(["--robot", "test", command])
         .output()
         .expect("Failed to run dcg");

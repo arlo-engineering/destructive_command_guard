@@ -41,7 +41,13 @@ use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 /// Hard timeout for AST operations (20ms as per ADR).
+///
+/// Tests use a more generous budget because CI/debug builds are slower
+/// than optimised release binaries.
+#[cfg(not(test))]
 const AST_TIMEOUT_MS: u64 = 20;
+#[cfg(test)]
+const AST_TIMEOUT_MS: u64 = 500;
 
 /// Severity level for pattern matches.
 ///

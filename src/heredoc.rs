@@ -62,7 +62,7 @@ use tracing::{debug, instrument, trace, warn};
 /// quote-aware scanner so we can suppress obvious false positives inside quoted
 /// literals (commit messages, search patterns, etc.) without introducing false
 /// negatives for real shell syntax (including `$()`/backtick substitutions).
-const HEREDOC_TRIGGER_PATTERNS: [&str; 12] = [
+const HEREDOC_TRIGGER_PATTERNS: [&str; 13] = [
     // Inline interpreter execution. These patterns intentionally allow:
     // - interleaved flags (python -I -c, bash --norc -c)
     // - combined short-flag clusters (bash -lc, node -pe, perl -pi -e)
@@ -71,6 +71,11 @@ const HEREDOC_TRIGGER_PATTERNS: [&str; 12] = [
     //
     // Tier 1 MUST have zero false negatives for Tier 2 extraction.
     //
+    // Here-string operator (<<<).
+    // Tier 2 extracts here-strings via context-free regex, so Tier 1 must
+    // trigger on any occurrence of <<< (even inside quotes) to maintain the
+    // superset invariant.  False positives are acceptable for Tier 1.
+    r"<<<",
     // Python inline execution (matches python, python3, python3.11, python.exe, python3.11.exe, etc.)
     r#"\bpython[0-9.]*(?:\.exe)?\b(?:\s+(?:--\S+|-[A-Za-z]+))*\s+-[A-Za-z]*[ce][A-Za-z]*(?:\s|['"]|$)"#,
     // Ruby inline execution (matches ruby, ruby3, ruby3.0, ruby.exe, etc.)
