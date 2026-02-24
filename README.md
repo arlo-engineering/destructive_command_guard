@@ -1333,7 +1333,7 @@ This is logged and visible in git history. For permanent exceptions, use allowli
 
 ## How It Works
 
-1. Claude Code or GitHub Copilot CLI invokes the hook before executing a shell command
+1. Claude Code, Gemini CLI, or GitHub Copilot CLI invokes the hook before executing a shell command
 2. The hook receives the command as JSON on stdin
 3. Commands are normalized (e.g., `/usr/bin/git` becomes `git`)
 4. Safe patterns are checked first (whitelist approach)
@@ -1347,7 +1347,7 @@ The hook is designed for minimal latency with sub-millisecond execution on typic
 
 The hook uses two separate output channels:
 
-- **stdout (JSON)**: Hook protocol response (Claude-compatible `hookSpecificOutput` or Copilot-compatible `continue: false` + denial fields). On allow, outputs nothing.
+- **stdout (JSON)**: Hook protocol response (Claude-compatible `hookSpecificOutput`, Gemini-compatible `decision/reason`, or Copilot-compatible `continue: false` + denial fields). On allow, outputs nothing.
 - **stderr (colorful text)**: A human-readable warning when commands are blocked. Colors are automatically disabled when stderr is not a TTY (e.g., when piped to a file).
 
 This dual-output design ensures the hook protocol works correctly while still providing immediate visual feedback to users watching the terminal.
@@ -1356,7 +1356,7 @@ This dual-output design ensures the hook protocol works correctly while still pr
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                 Claude Code / Copilot CLI                        │
+│            Claude Code / Gemini CLI / Copilot CLI                │
 │                                                                  │
 │  User: "delete the build artifacts"                             │
 │  Agent: executes `rm -rf ./build`                               │
@@ -1387,7 +1387,7 @@ This dual-output design ensures the hook protocol works correctly while still pr
                       │
                       ▼ stdout: JSON (deny) or empty (allow)
 ┌─────────────────────────────────────────────────────────────────┐
-│                 Claude Code / Copilot CLI                        │
+│            Claude Code / Gemini CLI / Copilot CLI                │
 │                                                                  │
 │  If denied: Shows block message, does NOT execute command       │
 │  If allowed: Proceeds with command execution                    │
@@ -2215,7 +2215,7 @@ The block message instructs the AI to ask you for explicit permission. You can t
 
 **Q: Does this work with other AI coding tools?**
 
-Yes. dcg natively supports Claude Code and GitHub Copilot CLI hook payloads. For other tools, support depends on whether they expose a pre-execution shell hook with compatible JSON input/output.
+Yes. dcg natively supports Claude Code, Gemini CLI, and GitHub Copilot CLI hook payloads. For other tools, support depends on whether they expose a pre-execution shell hook with compatible JSON input/output.
 
 **Q: What about database, Docker, Kubernetes, and cloud commands?**
 

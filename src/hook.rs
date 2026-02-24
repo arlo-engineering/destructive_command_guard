@@ -1,7 +1,8 @@
-//! Claude Code hook protocol handling.
+//! Hook protocol handling.
 //!
-//! This module handles the JSON input/output for the Claude Code `PreToolUse` hook.
-//! It parses incoming hook requests and formats denial responses.
+//! This module handles JSON input/output for supported hook protocols
+//! (Claude Code, Copilot, and Gemini). It parses incoming hook requests
+//! and formats denial responses.
 
 use crate::evaluator::MatchSpan;
 use crate::highlight::HighlightSpan;
@@ -20,11 +21,27 @@ use std::borrow::Cow;
 use std::io::{self, IsTerminal, Read, Write};
 use std::time::Duration;
 
-/// Input structure from Claude Code's `PreToolUse` hook.
+/// Input structure from supported hook protocols.
 #[derive(Debug, Deserialize)]
 pub struct HookInput {
     /// Hook event name (used by some clients, e.g. Copilot CLI: "pre-tool-use").
     pub event: Option<String>,
+
+    /// Gemini hook event name (e.g., "BeforeTool").
+    #[serde(alias = "hookEventName")]
+    pub hook_event_name: Option<String>,
+
+    /// Gemini session id.
+    pub session_id: Option<String>,
+
+    /// Gemini transcript path.
+    pub transcript_path: Option<String>,
+
+    /// Gemini working directory.
+    pub cwd: Option<String>,
+
+    /// Gemini event timestamp.
+    pub timestamp: Option<String>,
 
     /// The name of the tool being invoked (e.g., "Bash", "Read", "Write").
     #[serde(alias = "toolName")]
@@ -156,6 +173,48 @@ pub struct CopilotHookOutput<'a> {
     pub remediation: Option<Remediation>,
 }
 
+/// Gemini-compatible denial output for `BeforeTool` hooks.
+#[derive(Debug, Serialize)]
+pub struct GeminiHookOutput<'a> {
+    /// Decision for this hook event.
+    pub decision: &'static str,
+
+    /// Why the action was denied.
+    pub reason: Cow<'a, str>,
+
+    /// Human-visible message in Gemini CLI.
+    #[serde(rename = "systemMessage", skip_serializing_if = "Option::is_none")]
+    pub system_message: Option<Cow<'a, str>>,
+
+    /// Short allow-once code (if a pending exception was recorded).
+    #[serde(rename = "allowOnceCode", skip_serializing_if = "Option::is_none")]
+    pub allow_once_code: Option<String>,
+
+    /// Full hash for allow-once disambiguation (if available).
+    #[serde(rename = "allowOnceFullHash", skip_serializing_if = "Option::is_none")]
+    pub allow_once_full_hash: Option<String>,
+
+    /// Stable rule identifier (e.g., "core.git:reset-hard").
+    #[serde(rename = "ruleId", skip_serializing_if = "Option::is_none")]
+    pub rule_id: Option<String>,
+
+    /// Pack identifier that matched (e.g., "core.git").
+    #[serde(rename = "packId", skip_serializing_if = "Option::is_none")]
+    pub pack_id: Option<String>,
+
+    /// Severity level of the matched pattern.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub severity: Option<crate::packs::Severity>,
+
+    /// Confidence score for this match (0.0-1.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+
+    /// Remediation suggestions for the blocked command.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<Remediation>,
+}
+
 /// Hook protocol variant for response formatting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HookProtocol {
@@ -163,6 +222,8 @@ pub enum HookProtocol {
     ClaudeCompatible,
     /// Copilot hook protocol (`continue` / `stopReason` + permission fields).
     Copilot,
+    /// Gemini hook protocol (`decision` / `reason`).
+    Gemini,
 }
 
 /// Allow-once metadata for denial output.
@@ -259,8 +320,15 @@ pub fn detect_protocol(input: &HookInput) -> HookProtocol {
         .as_deref()
         .map(str::to_ascii_lowercase)
         .unwrap_or_default();
+    let has_gemini_context = input.session_id.is_some()
+        || input.transcript_path.is_some()
+        || input.cwd.is_some()
+        || input.timestamp.is_some();
 
-    if input.event.is_some()
+    // Gemini hooks include session-level envelope fields in every payload.
+    if has_gemini_context {
+        HookProtocol::Gemini
+    } else if input.event.is_some()
         || input.tool_args.is_some()
         || matches!(
             tool_name.as_str(),
@@ -677,7 +745,7 @@ pub fn output_denial_for_protocol(
                 hook_specific_output: HookSpecificOutput {
                     hook_event_name: "PreToolUse",
                     permission_decision: "deny",
-                    permission_decision_reason: Cow::Owned(message),
+                    permission_decision_reason: Cow::Owned(message.clone()),
                     allow_once_code: allow_once.map(|info| info.code.clone()),
                     allow_once_full_hash: allow_once.map(|info| info.full_hash.clone()),
                     rule_id,
@@ -696,7 +764,24 @@ pub fn output_denial_for_protocol(
                 continue_execution: false,
                 stop_reason: Cow::Owned(format!("BLOCKED by dcg: {reason}")),
                 permission_decision: "deny",
-                permission_decision_reason: Cow::Owned(message),
+                permission_decision_reason: Cow::Owned(message.clone()),
+                allow_once_code: allow_once.map(|info| info.code.clone()),
+                allow_once_full_hash: allow_once.map(|info| info.full_hash.clone()),
+                rule_id,
+                pack_id: pack.map(String::from),
+                severity,
+                confidence,
+                remediation,
+            };
+
+            let _ = serde_json::to_writer(&mut handle, &output);
+            let _ = writeln!(handle);
+        }
+        HookProtocol::Gemini => {
+            let output = GeminiHookOutput {
+                decision: "deny",
+                reason: Cow::Owned(message),
+                system_message: Some(Cow::Owned(format!("BLOCKED by dcg: {reason}"))),
                 allow_once_code: allow_once.map(|info| info.code.clone()),
                 allow_once_full_hash: allow_once.map(|info| info.full_hash.clone()),
                 rule_id,
@@ -976,6 +1061,58 @@ mod tests {
             Some("rm -rf /tmp/build".to_string())
         );
         assert_eq!(detect_protocol(&input), HookProtocol::Copilot);
+    }
+
+    #[test]
+    fn test_parse_gemini_before_tool_input() {
+        let json = r#"{
+            "session_id":"session-123",
+            "transcript_path":"/tmp/transcript.json",
+            "cwd":"/tmp",
+            "hook_event_name":"BeforeTool",
+            "timestamp":"2026-02-24T00:00:00Z",
+            "tool_name":"run_shell_command",
+            "tool_input":{"command":"git status"}
+        }"#;
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(extract_command(&input), Some("git status".to_string()));
+        assert_eq!(detect_protocol(&input), HookProtocol::Gemini);
+    }
+
+    #[test]
+    fn test_hook_event_name_alone_does_not_force_gemini_protocol() {
+        let json = r#"{
+            "hook_event_name":"BeforeTool",
+            "tool_name":"Bash",
+            "tool_input":{"command":"git status"}
+        }"#;
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(extract_command(&input), Some("git status".to_string()));
+        assert_eq!(detect_protocol(&input), HookProtocol::ClaudeCompatible);
+    }
+
+    #[test]
+    fn test_gemini_hook_output_json_shape() {
+        let output = GeminiHookOutput {
+            decision: "deny",
+            reason: Cow::Borrowed("blocked for safety"),
+            system_message: Some(Cow::Borrowed("BLOCKED by dcg: test")),
+            allow_once_code: None,
+            allow_once_full_hash: None,
+            rule_id: Some("core.git:reset-hard".to_string()),
+            pack_id: Some("core.git".to_string()),
+            severity: None,
+            confidence: None,
+            remediation: None,
+        };
+        let json = serde_json::to_value(&output).unwrap();
+        assert_eq!(json["decision"], "deny");
+        assert_eq!(json["reason"], "blocked for safety");
+        assert_eq!(json["systemMessage"], "BLOCKED by dcg: test");
+        assert!(json.get("continue").is_none());
+        assert!(json.get("stopReason").is_none());
+        assert_eq!(json["ruleId"], "core.git:reset-hard");
+        assert_eq!(json["packId"], "core.git");
     }
 
     #[test]
