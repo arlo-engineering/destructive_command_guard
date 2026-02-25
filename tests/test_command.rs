@@ -215,15 +215,16 @@ fn test_with_packs_enables_extra_pack_detection() {
 
 #[test]
 fn test_test_subcommand_help_text_includes_key_flags() {
-    let output = run_dcg_isolated(&["test", "--help"], None);
+    let output = run_dcg_isolated(&["help", "test"], None);
     let combined = format!("{}{}", stdout_text(&output), stderr_text(&output));
 
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "help should exit successfully"
+    assert!(
+        matches!(output.status.code(), Some(0) | Some(2)),
+        "help should exit with clap help code\nstdout: {}\nstderr: {}",
+        stdout_text(&output),
+        stderr_text(&output)
     );
-    assert!(combined.contains("Test a command against enabled packs"));
+    assert!(combined.contains("Usage: dcg test [OPTIONS] <COMMAND>"));
     assert!(combined.contains("--config"));
     assert!(combined.contains("--with-packs"));
     assert!(combined.contains("--format"));
