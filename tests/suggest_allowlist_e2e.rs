@@ -107,6 +107,15 @@ database_path = "{}"
 
     /// Run dcg suggest-allowlist with given args.
     fn run_suggest_allowlist(&self, args: &[&str]) -> std::process::Output {
+        self.run_suggest_allowlist_with_env(args, &[])
+    }
+
+    /// Run dcg suggest-allowlist with given args and extra environment variables.
+    fn run_suggest_allowlist_with_env(
+        &self,
+        args: &[&str],
+        extra_env: &[(&str, &str)],
+    ) -> std::process::Output {
         let mut cmd = Command::new(dcg_binary());
         cmd.env_clear()
             .env("HOME", &self.home_dir)
@@ -118,6 +127,10 @@ database_path = "{}"
             .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        for (key, value) in extra_env {
+            cmd.env(key, value);
+        }
 
         cmd.output().expect("failed to execute dcg")
     }
@@ -794,6 +807,129 @@ fn test_suggest_allowlist_interactive_accept_writes_allowlist() {
     }
 
     eprintln!("=== Interactive accept test PASSED ===");
+}
+
+#[test]
+fn test_suggest_allowlist_interactive_shows_action_prompts() {
+    eprintln!("=== Testing that interactive mode shows action prompts ===");
+
+    let env = TestEnv::new().with_history(&suggest_test_fixtures());
+    let output = env.run_suggest_allowlist_interactive(&["--min-frequency", "3"], "q\n");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}{stderr}");
+
+    eprintln!("Exit code: {}", output.status.code().unwrap_or(-1));
+    eprintln!("Stdout: {}", stdout);
+    eprintln!("Stderr: {}", stderr);
+
+    assert!(
+        output.status.success(),
+        "Interactive command should succeed"
+    );
+    assert!(
+        combined.contains("[A]ccept"),
+        "Interactive output should include accept prompt"
+    );
+    assert!(
+        combined.contains("[S]kip"),
+        "Interactive output should include skip prompt"
+    );
+    assert!(
+        combined.contains("[Q]uit"),
+        "Interactive output should include quit prompt"
+    );
+
+    eprintln!("=== Interactive action prompt test PASSED ===");
+}
+
+#[test]
+fn test_suggest_allowlist_ci_forces_non_interactive_mode() {
+    eprintln!("=== Testing CI env forces non-interactive suggest mode ===");
+
+    let env = TestEnv::new().with_history(&suggest_test_fixtures());
+
+    let output = env.run_suggest_allowlist_with_env(&["--min-frequency", "3"], &[("CI", "true")]);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}{stderr}");
+
+    eprintln!("Exit code: {}", output.status.code().unwrap_or(-1));
+    eprintln!("Stdout: {}", stdout);
+    eprintln!("Stderr: {}", stderr);
+
+    assert!(
+        output.status.success(),
+        "Suggest command should succeed in CI mode"
+    );
+    assert!(
+        !combined.contains("[A]ccept"),
+        "CI mode should suppress interactive accept prompt"
+    );
+    assert!(
+        !combined.contains("[S]kip"),
+        "CI mode should suppress interactive skip prompt"
+    );
+    assert!(
+        !combined.contains("[Q]uit"),
+        "CI mode should suppress interactive quit prompt"
+    );
+    assert!(
+        !env.allowlist_exists(),
+        "CI-forced non-interactive mode should not write allowlist"
+    );
+
+    eprintln!("=== CI non-interactive test PASSED ===");
+}
+
+#[test]
+fn test_suggest_allowlist_robot_env_forces_json_non_interactive_mode() {
+    eprintln!("=== Testing DCG_ROBOT env forces JSON non-interactive suggest mode ===");
+
+    let env = TestEnv::new().with_history(&suggest_test_fixtures());
+
+    let output =
+        env.run_suggest_allowlist_with_env(&["--min-frequency", "3"], &[("DCG_ROBOT", "1")]);
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}{stderr}");
+
+    eprintln!("Exit code: {}", output.status.code().unwrap_or(-1));
+    eprintln!("Stdout: {}", stdout);
+    eprintln!("Stderr: {}", stderr);
+
+    assert!(
+        output.status.success(),
+        "Suggest command should succeed in robot mode"
+    );
+    assert!(
+        !combined.contains("[A]ccept"),
+        "Robot mode should suppress interactive accept prompt"
+    );
+    assert!(
+        !combined.contains("[S]kip"),
+        "Robot mode should suppress interactive skip prompt"
+    );
+    assert!(
+        !combined.contains("[Q]uit"),
+        "Robot mode should suppress interactive quit prompt"
+    );
+    assert!(
+        !env.allowlist_exists(),
+        "Robot mode should not write allowlist"
+    );
+
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("Robot mode output should be valid JSON");
+    assert!(
+        parsed.is_array(),
+        "Robot mode suggest output should be a JSON array"
+    );
+
+    eprintln!("=== Robot mode non-interactive test PASSED ===");
 }
 
 #[test]

@@ -252,6 +252,28 @@ fn test_hook_output_permission_decision_reason() {
 }
 
 #[test]
+fn test_hook_output_stderr_includes_allowlist_add_hint() {
+    let (stdout, stderr, exit_code) = run_hook_mode("git reset --hard");
+
+    assert_eq!(exit_code, 0, "hook mode should exit 0");
+    assert!(!stdout.trim().is_empty(), "deny should emit JSON on stdout");
+
+    let json: serde_json::Value =
+        serde_json::from_str(&stdout).expect("hook output should be valid JSON");
+    let hook_output = &json["hookSpecificOutput"];
+
+    assert_eq!(
+        hook_output["permissionDecision"], "deny",
+        "git reset --hard should be denied"
+    );
+
+    assert!(
+        stderr.contains("dcg allowlist add core.git:reset-hard --project"),
+        "stderr should include allowlist add hint for matched rule.\nstderr:\n{stderr}"
+    );
+}
+
+#[test]
 fn test_hook_output_safe_command_returns_no_output() {
     let (stdout, _stderr, exit_code) = run_hook_mode("git status");
 

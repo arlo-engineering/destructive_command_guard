@@ -245,6 +245,19 @@ pub fn validate_code(input: &str, expected: &str) -> bool {
 /// This is a critical security check. If stdin is not a TTY, we're likely
 /// receiving piped input from an AI agent, and interactive mode MUST be disabled.
 pub fn check_interactive_available(config: &InteractiveConfig) -> Result<(), NotAvailableReason> {
+    let stdin_is_tty = io::stdin().is_terminal();
+    let ci_environment = is_ci_environment();
+    let term_is_dumb = matches!(std::env::var("TERM").as_deref(), Ok("dumb"));
+
+    check_interactive_available_with_context(config, stdin_is_tty, ci_environment, term_is_dumb)
+}
+
+fn check_interactive_available_with_context(
+    config: &InteractiveConfig,
+    stdin_is_tty: bool,
+    ci_environment: bool,
+    term_is_dumb: bool,
+) -> Result<(), NotAvailableReason> {
     // Check if interactive mode is enabled
     if !config.enabled {
         return Err(NotAvailableReason::Disabled);
@@ -258,17 +271,17 @@ pub fn check_interactive_available(config: &InteractiveConfig) -> Result<(), Not
 
     // Critical: Check if stdin is a TTY
     // If not, we're likely receiving piped input from an AI agent
-    if !io::stdin().is_terminal() {
+    if !stdin_is_tty {
         return Err(NotAvailableReason::NotTty);
     }
 
     // Check for CI environment
-    if config.disable_in_ci && is_ci_environment() {
+    if config.disable_in_ci && ci_environment {
         return Err(NotAvailableReason::CiEnvironment);
     }
 
     // Check for dumb terminal
-    if matches!(std::env::var("TERM").as_deref(), Ok("dumb")) {
+    if term_is_dumb {
         return Err(NotAvailableReason::UnsuitableTerminal);
     }
 
@@ -784,6 +797,48 @@ pub fn print_not_available_message(reason: &NotAvailableReason) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsString;
+    use std::sync::{Mutex, OnceLock};
+
+    const CI_ENV_VARS: [&str; 5] = ["CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS", "TRAVIS"];
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("env lock poisoned")
+    }
+
+    fn with_clean_ci_env<F>(f: F)
+    where
+        F: FnOnce(),
+    {
+        let _guard = env_lock();
+        let saved: Vec<(&str, Option<OsString>)> = CI_ENV_VARS
+            .iter()
+            .map(|key| (*key, std::env::var_os(key)))
+            .collect();
+
+        for key in CI_ENV_VARS {
+            unsafe {
+                std::env::remove_var(key);
+            }
+        }
+
+        f();
+
+        for (key, value) in saved {
+            match value {
+                Some(existing) => unsafe {
+                    std::env::set_var(key, existing);
+                },
+                None => unsafe {
+                    std::env::remove_var(key);
+                },
+            }
+        }
+    }
 
     #[test]
     fn test_generate_verification_code_length() {
@@ -948,7 +1003,107 @@ mod tests {
         );
     }
 
-    // Note: TTY and CI environment tests are difficult to unit test because they
-    // depend on the actual runtime environment. These are better tested via
-    // integration tests or manual testing.
+    #[test]
+    fn test_check_interactive_not_tty() {
+        let config = InteractiveConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            check_interactive_available_with_context(&config, false, false, false),
+            Err(NotAvailableReason::NotTty)
+        );
+    }
+
+    #[test]
+    fn test_check_interactive_ci_environment_blocked() {
+        let config = InteractiveConfig {
+            enabled: true,
+            disable_in_ci: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            check_interactive_available_with_context(&config, true, true, false),
+            Err(NotAvailableReason::CiEnvironment)
+        );
+    }
+
+    #[test]
+    fn test_check_interactive_ci_environment_allowed_when_disabled() {
+        let config = InteractiveConfig {
+            enabled: true,
+            disable_in_ci: false,
+            ..Default::default()
+        };
+        assert_eq!(
+            check_interactive_available_with_context(&config, true, true, false),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn test_is_ci_environment_false_when_no_known_vars_are_set() {
+        with_clean_ci_env(|| {
+            assert!(
+                !is_ci_environment(),
+                "Expected CI detection to be false with no CI env vars set"
+            );
+        });
+    }
+
+    #[test]
+    fn test_is_ci_environment_detects_each_supported_variable() {
+        for key in CI_ENV_VARS {
+            with_clean_ci_env(|| {
+                unsafe {
+                    std::env::set_var(key, "1");
+                }
+                assert!(
+                    is_ci_environment(),
+                    "Expected CI detection to be true when {key} is set"
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn test_check_interactive_unsuitable_terminal() {
+        let config = InteractiveConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            check_interactive_available_with_context(&config, true, false, true),
+            Err(NotAvailableReason::UnsuitableTerminal)
+        );
+    }
+
+    #[test]
+    fn test_check_interactive_missing_required_env() {
+        let config = InteractiveConfig {
+            enabled: true,
+            require_env: Some("DCG_INTERACTIVE_TEST_SENTINEL_UNSET".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            check_interactive_available_with_context(&config, true, false, false),
+            Err(NotAvailableReason::MissingEnv(
+                "DCG_INTERACTIVE_TEST_SENTINEL_UNSET".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_check_interactive_available_when_requirements_met() {
+        let config = InteractiveConfig {
+            enabled: true,
+            disable_in_ci: true,
+            require_env: None,
+            ..Default::default()
+        };
+        assert_eq!(
+            check_interactive_available_with_context(&config, true, false, false),
+            Ok(())
+        );
+    }
 }

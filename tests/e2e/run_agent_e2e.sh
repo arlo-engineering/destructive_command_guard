@@ -502,6 +502,57 @@ test_cli_test_command_json() {
     fi
 }
 
+test_cli_test_command_config_override() {
+    log_info "Testing: 'dcg test --config' override behavior..."
+
+    local config_path="${TEMP_DIR}/test-command-config.toml"
+    cat > "$config_path" << 'EOF'
+[overrides]
+allow = ["git reset --hard"]
+EOF
+
+    local result=""
+    local exit_code=0
+    result=$("$DCG_BIN" test --format json --config "$config_path" "git reset --hard" 2>/dev/null) || exit_code=$?
+
+    local decision
+    decision=$(json_get "$result" ".decision")
+    if [[ $exit_code -eq 0 && "$decision" == "allow" ]]; then
+        log_pass "'dcg test --config' applies override config"
+        return 0
+    else
+        log_fail "Expected allow with exit 0 (got exit=$exit_code, decision='$decision')"
+        return 1
+    fi
+}
+
+test_cli_test_command_with_packs() {
+    log_info "Testing: 'dcg test --with-packs' enables extra pack detection..."
+
+    local cmd="aws ec2 terminate-instances --instance-ids i-1234567890abcdef0"
+    local base_result=""
+    local base_exit=0
+    base_result=$("$DCG_BIN" test --format json "$cmd" 2>/dev/null) || base_exit=$?
+    local base_decision
+    base_decision=$(json_get "$base_result" ".decision")
+
+    local pack_result=""
+    local pack_exit=0
+    pack_result=$("$DCG_BIN" test --format json --with-packs cloud.aws "$cmd" 2>/dev/null) || pack_exit=$?
+    local pack_decision
+    pack_decision=$(json_get "$pack_result" ".decision")
+    local pack_id
+    pack_id=$(json_get "$pack_result" ".pack_id")
+
+    if [[ $base_exit -eq 0 && "$base_decision" == "allow" && $pack_exit -eq 1 && "$pack_decision" == "deny" && "$pack_id" == "cloud.aws" ]]; then
+        log_pass "'dcg test --with-packs' toggles evaluation as expected"
+        return 0
+    else
+        log_fail "Unexpected with-packs behavior (base exit=$base_exit decision='$base_decision', with-pack exit=$pack_exit decision='$pack_decision' pack='$pack_id')"
+        return 1
+    fi
+}
+
 test_cli_packs_command_json() {
     log_info "Testing: 'dcg packs --format json' output..."
 
@@ -640,6 +691,8 @@ main() {
     test_json_root_is_object || true
     test_hook_specific_output_present || true
     test_cli_test_command_json || true
+    test_cli_test_command_config_override || true
+    test_cli_test_command_with_packs || true
     test_cli_packs_command_json || true
 
     echo ""

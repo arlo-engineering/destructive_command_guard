@@ -1221,10 +1221,14 @@ pub struct AllowlistRule {
 
     /// Whether this is a session-only rule.
     ///
-    /// Session rules are not persisted and expire when dcg restarts.
+    /// Session rules are valid only within the shell session that created them.
     /// Mutually exclusive with `expires`, `ttl`, and `ttl_seconds`.
     #[serde(default)]
     pub session: Option<bool>,
+
+    /// Session identifier this rule is bound to when `session = true`.
+    #[serde(default)]
+    pub session_id: Option<String>,
 
     /// Timestamp when this rule was created (ISO 8601 format).
     ///
@@ -1244,6 +1248,7 @@ impl Default for AllowlistRule {
             ttl: None,
             ttl_seconds: None,
             session: None,
+            session_id: None,
             created_at: None,
         }
     }
@@ -1297,6 +1302,22 @@ impl AllowlistRule {
     #[must_use]
     pub fn is_active(&self) -> bool {
         let now = Utc::now();
+
+        if self.session.unwrap_or(false) {
+            let Some(bound_session_id) = self.session_id.as_deref().map(str::trim) else {
+                return false;
+            };
+            if bound_session_id.is_empty() {
+                return false;
+            }
+
+            let Some(current_session_id) = crate::allowlist::current_session_id() else {
+                return false;
+            };
+            if bound_session_id != current_session_id.trim() {
+                return false;
+            }
+        }
 
         // Check absolute expiration timestamp
         if let Some(expires_str) = &self.expires {
@@ -1369,6 +1390,16 @@ impl AllowlistRule {
             return Err(
                 "only one of expires, ttl, ttl_seconds, or session should be set".to_string(),
             );
+        }
+
+        if self.session.unwrap_or(false)
+            && self
+                .session_id
+                .as_deref()
+                .map(str::trim)
+                .is_none_or(str::is_empty)
+        {
+            return Err("session=true requires non-empty session_id".to_string());
         }
 
         // Validate expires format if present
@@ -4301,6 +4332,71 @@ allow = false
     }
 
     #[test]
+    fn test_config_merge_layer_interactive_overrides_fields() {
+        let mut config = Config::default();
+        let layer: ConfigLayer = toml::from_str(
+            r#"
+[interactive]
+enabled = true
+verification = "command"
+timeout_seconds = 12
+code_length = 6
+max_attempts = 7
+allow_non_tty_fallback = false
+disable_in_ci = false
+require_env = "DCG_INTERACTIVE"
+"#,
+        )
+        .expect("layer parses");
+
+        config.merge_layer(layer);
+
+        assert!(config.interactive.enabled);
+        assert_eq!(config.interactive.verification, VerificationMethod::Command);
+        assert_eq!(config.interactive.timeout_seconds, 12);
+        assert_eq!(config.interactive.code_length, 6);
+        assert_eq!(config.interactive.max_attempts, 7);
+        assert!(!config.interactive.allow_non_tty_fallback);
+        assert!(!config.interactive.disable_in_ci);
+        assert_eq!(
+            config.interactive.require_env.as_deref(),
+            Some("DCG_INTERACTIVE")
+        );
+    }
+
+    #[test]
+    fn test_config_merge_layer_interactive_missing_fields_do_not_override() {
+        let mut config = Config::default();
+        config.interactive.enabled = true;
+        config.interactive.verification = VerificationMethod::None;
+        config.interactive.timeout_seconds = 9;
+        config.interactive.code_length = 5;
+        config.interactive.max_attempts = 4;
+        config.interactive.allow_non_tty_fallback = false;
+        config.interactive.disable_in_ci = false;
+        config.interactive.require_env = Some("KEEP_ME".to_string());
+
+        let layer: ConfigLayer = toml::from_str(
+            r"
+[interactive]
+enabled = false
+",
+        )
+        .expect("layer parses");
+
+        config.merge_layer(layer);
+
+        assert!(!config.interactive.enabled);
+        assert_eq!(config.interactive.verification, VerificationMethod::None);
+        assert_eq!(config.interactive.timeout_seconds, 9);
+        assert_eq!(config.interactive.code_length, 5);
+        assert_eq!(config.interactive.max_attempts, 4);
+        assert!(!config.interactive.allow_non_tty_fallback);
+        assert!(!config.interactive.disable_in_ci);
+        assert_eq!(config.interactive.require_env.as_deref(), Some("KEEP_ME"));
+    }
+
+    #[test]
     fn test_heredoc_settings_defaults() {
         let config = Config::default();
         let settings = config.heredoc_settings();
@@ -4703,6 +4799,18 @@ allow = false
     }
 
     #[test]
+    fn test_allowlist_rule_validation_session_requires_session_id() {
+        let rule = AllowlistRule {
+            pattern: "test".to_string(),
+            session: Some(true),
+            session_id: None,
+            ..Default::default()
+        };
+        assert!(rule.validate().is_err());
+        assert!(rule.validate().unwrap_err().contains("session_id"));
+    }
+
+    #[test]
     fn test_allowlist_rule_is_active_no_expiry() {
         let rule = AllowlistRule {
             pattern: "test".to_string(),
@@ -4729,6 +4837,37 @@ allow = false
             ..Default::default()
         };
         assert!(!rule.is_active());
+    }
+
+    #[test]
+    fn test_allowlist_rule_is_active_session_mismatch_is_inactive() {
+        let rule = AllowlistRule {
+            pattern: "test".to_string(),
+            session: Some(true),
+            session_id: Some("ppid:0|tty:/dev/pts/999".to_string()),
+            ..Default::default()
+        };
+        assert!(!rule.is_active());
+    }
+
+    #[test]
+    fn test_allowlist_rule_is_active_session_match_follows_runtime_detection() {
+        let detected = crate::allowlist::current_session_id();
+        let bound = detected
+            .clone()
+            .unwrap_or_else(|| "ppid:0|tty:/dev/pts/999".to_string());
+        let rule = AllowlistRule {
+            pattern: "test".to_string(),
+            session: Some(true),
+            session_id: Some(bound),
+            ..Default::default()
+        };
+
+        if detected.is_some() {
+            assert!(rule.is_active());
+        } else {
+            assert!(!rule.is_active());
+        }
     }
 
     #[test]

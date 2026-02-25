@@ -1919,7 +1919,8 @@ pub fn run_command(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             handle_history_command(&config, action)?;
         }
         Some(Command::SuggestAllowlist(cmd)) => {
-            handle_suggest_allowlist_command(&config, &cmd)?;
+            let robot_mode = cli.robot || std::env::var("DCG_ROBOT").is_ok();
+            handle_suggest_allowlist_command(&config, &cmd, robot_mode)?;
         }
         Some(Command::Dev { action }) => {
             handle_dev_command(&config, action, verbosity)?;
@@ -3018,6 +3019,34 @@ fn should_prompt_interactively(
     severity: Option<PackSeverity>,
     interactive_config: &InteractiveConfig,
 ) -> bool {
+    let non_interactive_env =
+        std::env::var("DCG_NON_INTERACTIVE").is_ok() || std::env::var("CI").is_ok();
+    let interactive_available = check_interactive_available(interactive_config).is_ok();
+    let stdin_is_tty = std::io::stdin().is_terminal();
+    let stdout_is_tty = std::io::stdout().is_terminal();
+
+    should_prompt_interactively_with_context(
+        format,
+        verbosity,
+        mode,
+        severity,
+        non_interactive_env,
+        interactive_available,
+        stdin_is_tty,
+        stdout_is_tty,
+    )
+}
+
+fn should_prompt_interactively_with_context(
+    format: TestFormat,
+    verbosity: Verbosity,
+    mode: DecisionMode,
+    severity: Option<PackSeverity>,
+    non_interactive_env: bool,
+    interactive_available: bool,
+    stdin_is_tty: bool,
+    stdout_is_tty: bool,
+) -> bool {
     if format.is_structured() || verbosity.quiet {
         return false;
     }
@@ -3030,15 +3059,15 @@ fn should_prompt_interactively(
         return false;
     }
 
-    if std::env::var("DCG_NON_INTERACTIVE").is_ok() || std::env::var("CI").is_ok() {
+    if non_interactive_env {
         return false;
     }
 
-    if check_interactive_available(interactive_config).is_err() {
+    if !interactive_available {
         return false;
     }
 
-    std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
+    stdin_is_tty && stdout_is_tty
 }
 
 fn prompt_for_block_action() -> InteractiveDecision {
@@ -6537,6 +6566,7 @@ fn parse_duration_string(s: &str) -> Result<chrono::Duration, String> {
 fn handle_suggest_allowlist_command(
     config: &Config,
     cmd: &SuggestAllowlistCommand,
+    robot_mode: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Handle --undo mode first
     if let Some(minutes) = cmd.undo {
@@ -6547,12 +6577,18 @@ fn handle_suggest_allowlist_command(
     let duration = parse_duration_string(&cmd.since)?;
     let since_time = Utc::now() - duration;
 
+    let effective_format = if robot_mode {
+        SuggestFormat::Json
+    } else {
+        cmd.format
+    };
+
     // Open history database
     let db_path = config.history.expanded_database_path();
     let db = match HistoryDb::open(db_path) {
         Ok(db) => db,
         Err(err) => {
-            if matches!(cmd.format, SuggestFormat::Json) {
+            if matches!(effective_format, SuggestFormat::Json) {
                 // Output empty array for JSON format
                 println!("[]");
                 return Ok(());
@@ -6579,7 +6615,7 @@ fn handle_suggest_allowlist_command(
     let entries = db.query_commands_for_export(&options)?;
 
     if entries.is_empty() {
-        if matches!(cmd.format, SuggestFormat::Json) {
+        if matches!(effective_format, SuggestFormat::Json) {
             // Output empty array for JSON format
             println!("[]");
             return Ok(());
@@ -6621,7 +6657,7 @@ fn handle_suggest_allowlist_command(
     let mut suggestions = generate_enhanced_suggestions(&entry_infos, cmd.min_frequency);
 
     if suggestions.is_empty() {
-        if matches!(cmd.format, SuggestFormat::Json) {
+        if matches!(effective_format, SuggestFormat::Json) {
             // Output empty array for JSON format
             println!("[]");
             return Ok(());
@@ -6655,7 +6691,7 @@ fn handle_suggest_allowlist_command(
     suggestions.truncate(cmd.limit);
 
     if suggestions.is_empty() {
-        if matches!(cmd.format, SuggestFormat::Json) {
+        if matches!(effective_format, SuggestFormat::Json) {
             // Output empty array for JSON format
             println!("[]");
             return Ok(());
@@ -6665,12 +6701,16 @@ fn handle_suggest_allowlist_command(
     }
 
     // Output based on format
-    match cmd.format {
+    match effective_format {
         SuggestFormat::Json => {
             output_suggestions_json(&suggestions)?;
         }
         SuggestFormat::Text => {
-            if cmd.non_interactive {
+            let force_non_interactive = robot_mode
+                || cmd.non_interactive
+                || std::env::var("DCG_NON_INTERACTIVE").is_ok()
+                || std::env::var("CI").is_ok();
+            if force_non_interactive {
                 // Non-interactive mode: no writes to database
                 output_suggestions_text(&suggestions);
             } else {
@@ -12798,6 +12838,93 @@ mod tests {
         assert_eq!(results[0].session_id, Some("cli-test-session".to_string()));
     }
 
+    #[test]
+    fn test_interactive_option_type_resolution() {
+        let no_paths: Vec<String> = Vec::new();
+        assert_eq!(
+            interactive_option_type(None, &no_paths),
+            InteractiveAllowlistOptionType::Exact
+        );
+
+        let paths = vec!["/tmp/workspace".to_string()];
+        assert_eq!(
+            interactive_option_type(None, &paths),
+            InteractiveAllowlistOptionType::PathSpecific
+        );
+
+        assert_eq!(
+            interactive_option_type(Some("2030-01-01T00:00:00Z"), &no_paths),
+            InteractiveAllowlistOptionType::Temporary
+        );
+    }
+
+    #[test]
+    fn test_log_interactive_allowlist_audit_event_skips_when_history_disabled() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let db_path = temp_dir.path().join("history.sqlite3");
+
+        let mut config = Config::default();
+        config.history.enabled = false;
+        config.history.database_path = Some(db_path.to_string_lossy().into_owned());
+
+        let applied = InteractiveAllowlistApplication {
+            summary: "exact command target, all directories".to_string(),
+            pattern_added: "git reset --hard".to_string(),
+            option_type: InteractiveAllowlistOptionType::Exact,
+            option_detail: Some("target=exact_command".to_string()),
+            config_file: temp_dir.path().join(".dcg/allowlist.toml"),
+        };
+
+        log_interactive_allowlist_audit_event(&config, "git reset --hard", &applied)
+            .expect("history disabled should be a no-op");
+
+        assert!(
+            !db_path.exists(),
+            "history db should not be created when history is disabled"
+        );
+    }
+
+    #[test]
+    fn test_log_interactive_allowlist_audit_event_persists_entry() {
+        use crate::history::HistoryDb;
+
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let db_path = temp_dir.path().join("history.sqlite3");
+
+        let mut config = Config::default();
+        config.history.enabled = true;
+        config.history.database_path = Some(db_path.to_string_lossy().into_owned());
+
+        let applied = InteractiveAllowlistApplication {
+            summary: "rule target, current directory only".to_string(),
+            pattern_added: "core.git:reset-hard".to_string(),
+            option_type: InteractiveAllowlistOptionType::PathSpecific,
+            option_detail: Some("target=matched_rule;scope=current_directory_only".to_string()),
+            config_file: temp_dir.path().join(".dcg/allowlist.toml"),
+        };
+
+        log_interactive_allowlist_audit_event(&config, "git reset --hard", &applied)
+            .expect("audit entry should be logged");
+
+        let db = HistoryDb::open(Some(db_path)).expect("history db opens");
+        assert_eq!(
+            db.count_interactive_allowlist_audits()
+                .expect("count audit entries"),
+            1
+        );
+
+        let rows = db
+            .query_interactive_allowlist_audits(10, None)
+            .expect("query audit entries");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].command, "git reset --hard");
+        assert_eq!(rows[0].pattern_added, "core.git:reset-hard");
+        assert_eq!(
+            rows[0].option_type,
+            InteractiveAllowlistOptionType::PathSpecific
+        );
+    }
+
     // ========================================================================
     // Scan CLI tests
     // ========================================================================
@@ -14017,6 +14144,78 @@ exclude = ["target/**"]
             DecisionMode::Warn,
             Some(PackSeverity::Medium),
             &InteractiveConfig::default(),
+        ));
+    }
+
+    #[test]
+    fn prompt_disabled_for_non_interactive_env_context() {
+        let verbosity = Verbosity {
+            level: 1,
+            quiet: false,
+        };
+        assert!(!should_prompt_interactively_with_context(
+            TestFormat::Pretty,
+            verbosity,
+            DecisionMode::Deny,
+            Some(PackSeverity::Medium),
+            true,
+            true,
+            true,
+            true,
+        ));
+    }
+
+    #[test]
+    fn prompt_disabled_when_interactive_not_available_context() {
+        let verbosity = Verbosity {
+            level: 1,
+            quiet: false,
+        };
+        assert!(!should_prompt_interactively_with_context(
+            TestFormat::Pretty,
+            verbosity,
+            DecisionMode::Deny,
+            Some(PackSeverity::Medium),
+            false,
+            false,
+            true,
+            true,
+        ));
+    }
+
+    #[test]
+    fn prompt_disabled_for_non_tty_context() {
+        let verbosity = Verbosity {
+            level: 1,
+            quiet: false,
+        };
+        assert!(!should_prompt_interactively_with_context(
+            TestFormat::Pretty,
+            verbosity,
+            DecisionMode::Deny,
+            Some(PackSeverity::Medium),
+            false,
+            true,
+            false,
+            true,
+        ));
+    }
+
+    #[test]
+    fn prompt_enabled_when_all_requirements_met_context() {
+        let verbosity = Verbosity {
+            level: 1,
+            quiet: false,
+        };
+        assert!(should_prompt_interactively_with_context(
+            TestFormat::Pretty,
+            verbosity,
+            DecisionMode::Deny,
+            Some(PackSeverity::Medium),
+            false,
+            true,
+            true,
+            true,
         ));
     }
 }

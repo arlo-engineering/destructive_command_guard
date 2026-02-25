@@ -123,6 +123,9 @@ pub struct AllowEntry {
     /// Session-scoped: expires when the shell session ends.
     /// Requires session tracking infrastructure (E6-T4).
     pub session: Option<bool>,
+    /// Session identifier this entry is bound to when `session = true`.
+    /// Entries with `session = true` must include this field.
+    pub session_id: Option<String>,
 
     // Optional match context hint (used for data-only allowlisting)
     pub context: Option<String>,
@@ -254,10 +257,12 @@ impl LayeredAllowlist {
             return None;
         }
 
+        let current_session_id = current_session_id();
+
         for layer in &self.layers {
             for entry in &layer.file.entries {
                 // Skip entries that are invalid or don't match path restrictions
-                if !is_entry_valid_at_path(entry, cwd) {
+                if !is_entry_valid_at_path_with_session(entry, cwd, current_session_id.as_deref()) {
                     continue;
                 }
 
@@ -318,9 +323,11 @@ impl LayeredAllowlist {
         rule: &RuleId,
         cwd: Option<&Path>,
     ) -> Option<(&AllowEntry, AllowlistLayer)> {
+        let current_session_id = current_session_id();
+
         for layer in &self.layers {
             for entry in &layer.file.entries {
-                if !is_entry_valid_at_path(entry, cwd) {
+                if !is_entry_valid_at_path_with_session(entry, cwd, current_session_id.as_deref()) {
                     continue;
                 }
 
@@ -341,9 +348,11 @@ impl LayeredAllowlist {
         command: &str,
         cwd: Option<&Path>,
     ) -> Option<AllowlistHit<'_>> {
+        let current_session_id = current_session_id();
+
         for layer in &self.layers {
             for entry in &layer.file.entries {
-                if !is_entry_valid_at_path(entry, cwd) {
+                if !is_entry_valid_at_path_with_session(entry, cwd, current_session_id.as_deref()) {
                     continue;
                 }
 
@@ -367,9 +376,11 @@ impl LayeredAllowlist {
         command: &str,
         cwd: Option<&Path>,
     ) -> Option<AllowlistHit<'_>> {
+        let current_session_id = current_session_id();
+
         for layer in &self.layers {
             for entry in &layer.file.entries {
-                if !is_entry_valid_at_path(entry, cwd) {
+                if !is_entry_valid_at_path_with_session(entry, cwd, current_session_id.as_deref()) {
                     continue;
                 }
 
@@ -418,13 +429,8 @@ pub fn is_expired(entry: &AllowEntry) -> bool {
         return is_ttl_expired(ttl, entry.added_at.as_deref());
     }
 
-    // Session-scoped entries are handled by session tracker (E6-T4).
-    // For now, treat them as not expired (the session tracker will manage validity).
-    if entry.session == Some(true) {
-        return false;
-    }
-
-    // No expiration set
+    // No timestamp expiration set.
+    // Session-scoped validity is enforced separately by `session_scope_matches`.
     false
 }
 
@@ -508,6 +514,75 @@ fn parse_timestamp(timestamp: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     }
 
     None
+}
+
+/// Resolve the current shell session identifier.
+///
+/// Resolution order:
+/// 1. `DCG_SESSION_ID` environment variable (if set)
+/// 2. Linux process fingerprint from parent PID + stdin TTY path
+#[must_use]
+pub fn current_session_id() -> Option<String> {
+    if let Ok(from_env) = std::env::var("DCG_SESSION_ID") {
+        let trimmed = from_env.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+
+    session_id_from_process_fingerprint()
+}
+
+#[must_use]
+fn session_id_from_process_fingerprint() -> Option<String> {
+    #[cfg(target_os = "linux")]
+    {
+        let ppid = linux_parent_process_id()?;
+        let tty = fs::read_link("/proc/self/fd/0")
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "unknown".to_string());
+        Some(format!("ppid:{ppid}|tty:{tty}"))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[must_use]
+fn linux_parent_process_id() -> Option<u32> {
+    let stat = fs::read_to_string("/proc/self/stat").ok()?;
+    let close_paren = stat.rfind(')')?;
+    // Format is: pid (comm) state ppid ...
+    let rest = stat.get(close_paren + 2..)?;
+    let mut parts = rest.split_whitespace();
+    let _state = parts.next()?;
+    parts.next()?.parse().ok()
+}
+
+#[must_use]
+fn session_scope_matches(entry: &AllowEntry, current_session_id: Option<&str>) -> bool {
+    if entry.session != Some(true) {
+        return true;
+    }
+
+    let Some(bound_session_id) = entry.session_id.as_deref().map(str::trim) else {
+        // Fail closed: a session-scoped rule without a bound session is invalid.
+        return false;
+    };
+
+    if bound_session_id.is_empty() {
+        return false;
+    }
+
+    let Some(current_session_id) = current_session_id.map(str::trim) else {
+        return false;
+    };
+
+    bound_session_id == current_session_id
 }
 
 /// Check if all conditions on an allowlist entry are satisfied.
@@ -607,6 +682,7 @@ pub fn path_matches(entry: &AllowEntry, cwd: &Path) -> bool {
 ///
 /// An entry is valid if:
 /// - It hasn't expired
+/// - Session scope matches the current session (when `session = true`)
 /// - All conditions are met
 /// - Required risk acknowledgement is present (for regex patterns)
 ///
@@ -614,19 +690,38 @@ pub fn path_matches(entry: &AllowEntry, cwd: &Path) -> bool {
 /// full validity checking including path-specific rules.
 #[must_use]
 pub fn is_entry_valid(entry: &AllowEntry) -> bool {
-    !is_expired(entry) && conditions_met(entry) && has_required_risk_ack(entry)
+    let current_session_id = current_session_id();
+    is_entry_valid_with_session(entry, current_session_id.as_deref())
 }
 
 /// Check if an allowlist entry is valid for matching at a specific path.
 ///
 /// An entry is valid at a path if:
-/// - It passes basic validity checks (not expired, conditions met, risk ack)
+/// - It passes basic validity checks (not expired, session scope matches, conditions met, risk ack)
 /// - The path matches the entry's path patterns (if specified)
 ///
 /// If `cwd` is None, path matching is skipped (entry applies if basic validity passes).
 #[must_use]
 pub fn is_entry_valid_at_path(entry: &AllowEntry, cwd: Option<&Path>) -> bool {
-    if !is_entry_valid(entry) {
+    let current_session_id = current_session_id();
+    is_entry_valid_at_path_with_session(entry, cwd, current_session_id.as_deref())
+}
+
+#[must_use]
+fn is_entry_valid_with_session(entry: &AllowEntry, current_session_id: Option<&str>) -> bool {
+    !is_expired(entry)
+        && session_scope_matches(entry, current_session_id)
+        && conditions_met(entry)
+        && has_required_risk_ack(entry)
+}
+
+#[must_use]
+fn is_entry_valid_at_path_with_session(
+    entry: &AllowEntry,
+    cwd: Option<&Path>,
+    current_session_id: Option<&str>,
+) -> bool {
+    if !is_entry_valid_with_session(entry, current_session_id) {
         return false;
     }
 
@@ -1072,6 +1167,7 @@ fn parse_allow_entry(tbl: &toml::value::Table) -> Result<AllowEntry, String> {
     let expires_at = get_timestamp_string(tbl, "expires_at");
     let ttl = get_string(tbl, "ttl");
     let session = tbl.get("session").and_then(toml::Value::as_bool);
+    let session_id = get_string(tbl, "session_id");
 
     // Validate expiration options
     if let Some(ref exp) = expires_at {
@@ -1083,6 +1179,16 @@ fn parse_allow_entry(tbl: &toml::value::Table) -> Result<AllowEntry, String> {
 
     // Validate mutual exclusivity of expiration options
     validate_expiration_exclusivity(expires_at.as_deref(), ttl.as_deref(), session)?;
+
+    if session == Some(true) {
+        let has_session_id = session_id
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|v| !v.is_empty());
+        if !has_session_id {
+            return Err("session=true requires non-empty session_id".to_string());
+        }
+    }
 
     let context = get_string(tbl, "context");
 
@@ -1163,6 +1269,7 @@ fn parse_allow_entry(tbl: &toml::value::Table) -> Result<AllowEntry, String> {
         expires_at,
         ttl,
         session,
+        session_id,
         context,
         conditions,
         environments,
@@ -1299,6 +1406,43 @@ mod tests {
     }
 
     #[test]
+    fn session_entry_without_session_id_is_flagged() {
+        let toml = r#"
+            [[allow]]
+            rule = "core.git:reset-hard"
+            reason = "session rule"
+            session = true
+        "#;
+        let file = parse_allowlist_toml(AllowlistLayer::Project, Path::new("dummy"), toml);
+        assert!(file.entries.is_empty());
+        assert_eq!(file.errors.len(), 1);
+        assert!(
+            file.errors[0]
+                .message
+                .contains("session=true requires non-empty session_id")
+        );
+    }
+
+    #[test]
+    fn session_entry_with_session_id_parses() {
+        let toml = r#"
+            [[allow]]
+            rule = "core.git:reset-hard"
+            reason = "session rule"
+            session = true
+            session_id = "ppid:123|tty:/dev/pts/0"
+        "#;
+        let file = parse_allowlist_toml(AllowlistLayer::Project, Path::new("dummy"), toml);
+        assert!(file.errors.is_empty());
+        assert_eq!(file.entries.len(), 1);
+        assert_eq!(file.entries[0].session, Some(true));
+        assert_eq!(
+            file.entries[0].session_id.as_deref(),
+            Some("ppid:123|tty:/dev/pts/0")
+        );
+    }
+
+    #[test]
     fn precedence_project_over_user_for_rule_lookup() {
         let rule = RuleId::parse("core.git:reset-hard").unwrap();
 
@@ -1355,6 +1499,7 @@ mod tests {
                         expires_at: None,
                         ttl: None,
                         session: None,
+                        session_id: None,
                         context: None,
                         conditions: HashMap::new(),
                         environments: Vec::new(),
@@ -1389,6 +1534,7 @@ mod tests {
             expires_at: None,
             ttl: None,
             session: None,
+            session_id: None,
             context: None,
             conditions: HashMap::new(),
             environments: Vec::new(),
@@ -1512,7 +1658,7 @@ mod tests {
 
     #[test]
     fn session_entry_is_not_expired_by_is_expired_check() {
-        // Session entries are not expired by timestamp; they are handled by session tracker
+        // Session entries are not time-expired by timestamp checks.
         let mut entry = make_test_entry();
         entry.session = Some(true);
         assert!(!is_expired(&entry));
@@ -1524,6 +1670,39 @@ mod tests {
         let mut entry = make_test_entry();
         entry.session = Some(false);
         assert!(!is_expired(&entry));
+    }
+
+    #[test]
+    fn session_scoped_entry_without_bound_session_id_is_invalid() {
+        let mut entry = make_test_entry();
+        entry.session = Some(true);
+        entry.session_id = None;
+        assert!(!is_entry_valid_with_session(
+            &entry,
+            Some("ppid:1|tty:/dev/pts/1")
+        ));
+    }
+
+    #[test]
+    fn session_scoped_entry_with_mismatched_session_id_is_invalid() {
+        let mut entry = make_test_entry();
+        entry.session = Some(true);
+        entry.session_id = Some("ppid:111|tty:/dev/pts/1".to_string());
+        assert!(!is_entry_valid_with_session(
+            &entry,
+            Some("ppid:222|tty:/dev/pts/2")
+        ));
+    }
+
+    #[test]
+    fn session_scoped_entry_with_matching_session_id_is_valid() {
+        let mut entry = make_test_entry();
+        entry.session = Some(true);
+        entry.session_id = Some("ppid:111|tty:/dev/pts/1".to_string());
+        assert!(is_entry_valid_with_session(
+            &entry,
+            Some("ppid:111|tty:/dev/pts/1"),
+        ));
     }
 
     // ==========================================================================
@@ -1648,6 +1827,7 @@ mod tests {
                         expires_at: Some("2020-01-01T00:00:00Z".to_string()),
                         ttl: None,
                         session: None,
+                        session_id: None,
                         context: None,
                         conditions: HashMap::new(),
                         environments: Vec::new(),
@@ -1712,6 +1892,7 @@ mod tests {
             expires_at: None,
             ttl: None,
             session: None,
+            session_id: None,
             context: None,
             conditions: HashMap::new(),
             environments: Vec::new(),
@@ -1731,6 +1912,7 @@ mod tests {
             expires_at: None,
             ttl: None,
             session: None,
+            session_id: None,
             context: None,
             conditions: HashMap::new(),
             environments: Vec::new(),
@@ -1768,6 +1950,7 @@ mod tests {
             expires_at: None,
             ttl: None,
             session: None,
+            session_id: None,
             context: None,
             conditions: HashMap::new(),
             environments: Vec::new(),
@@ -1796,6 +1979,7 @@ mod tests {
                         expires_at: None,
                         ttl: None,
                         session: None,
+                        session_id: None,
                         context: None,
                         conditions: {
                             let mut m = HashMap::new();
