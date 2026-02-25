@@ -651,7 +651,7 @@ To prevent any single command from blocking indefinitely, dcg enforces an absolu
 The easiest way to install is using the install script, which downloads a prebuilt binary for your platform:
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/master/install.sh?$(date +%s)" | bash -s -- --easy-mode
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --easy-mode
 ```
 
 Easy mode automatically:
@@ -861,52 +861,75 @@ echo '{"tool_name":"Bash","tool_input":{"command":"git reset --hard"}}' | dcg
 
 ### Test Mode (`dcg test`)
 
-Use `dcg test` to evaluate a command **without executing it**. This is useful for CI, debugging false positives, and validating config changes before rolling them out.
+Use `dcg test` to evaluate a command **without executing it**. This is useful for CI checks, false-positive debugging, and config validation before rollout.
+
+#### Basic Usage
 
 ```bash
-# Basic usage
+# Basic evaluation (human-readable output)
 dcg test "rm -rf ./build"
 
-# JSON output for scripting/CI
+# Structured output for automation
 dcg test --format json "kubectl delete namespace prod" | jq -r .decision
 
 # Use a specific config file
 dcg test --config .dcg.prod.toml "docker system prune"
 
-# Temporarily enable extra packs for the test
+# Temporarily enable extra packs only for this test run
 dcg test --with-packs containers.docker,database.postgresql "docker system prune"
 
-# Show a full trace (same as `dcg explain`)
+# Print full evaluation trace (same engine as `dcg explain`)
 dcg test --explain "git reset --hard"
 ```
 
-**Exit codes**:
-- `0` if the command would be allowed
-- `1` if the command would be blocked
+#### Exit Codes
 
-**JSON output** includes: `decision`, `rule_id`, `pack_id`, `pattern_name`, `reason`,
-`explanation`, `source`, `matched_span`, `allowlist`, and detected `agent`.
+- `0`: command would be allowed
+- `1`: command would be blocked
 
-**All flags**:
-- `--config <path>` to use a specific config file
-- `--with-packs <id1,id2>` to temporarily enable extra packs
-- `--explain` to print a full evaluation trace
-- `--format pretty|json` (default: pretty)
-- `--no-color` to disable ANSI color output
-- `--heredoc-scan` / `--no-heredoc-scan` to override heredoc scanning
-- `--heredoc-timeout <ms>` to tune extraction budget
-- `--heredoc-languages python,bash,javascript` to restrict AST scanning
+#### Flags and Options
 
-**CI tip**: `dcg test` exits `1` when blocked, so pipelines can fail fast:
+- `-c, --config <PATH>`: use a specific config file
+- `--with-packs <ID1,ID2>`: temporarily enable extra packs
+- `--explain`: print detailed decision trace
+- `-f, --format <pretty|json|toon>`: output format (default: `pretty`)
+- `--no-color`: disable ANSI color output
+- `--heredoc-scan`: force-enable heredoc/inline-script scanning
+- `--no-heredoc-scan`: force-disable heredoc/inline-script scanning
+- `--heredoc-timeout <MS>`: override heredoc extraction timeout budget
+- `--heredoc-languages <LANG1,LANG2>`: limit heredoc AST scanning languages
+
+#### Output Formats
+
+- `pretty`: human-readable output with command context, matched rule info, and suggestions
+- `json`: structured payload for scripts/CI; includes metadata like `schema_version`, `dcg_version`, `command`, `decision`, rule/pack fields, and allowlist/agent context when present
+- `toon`: token-efficient structured encoding of the same payload used by `json` (useful for agent-to-agent/tool pipelines)
+
+#### CI/CD Integration Examples
+
+Fail fast in shell pipelines:
 
 ```bash
 dcg test --format json "rm -rf /" > /tmp/dcg.json
 jq -e '.decision == "allow"' /tmp/dcg.json
 ```
 
-**Troubleshooting**:
-- If you need machine-parseable output, use `--format json` (or set `DCG_FORMAT=json`).
-- If your parser chokes on ANSI codes, add `--no-color`.
+Minimal GitHub Actions step:
+
+```yaml
+- name: Validate dangerous command policy
+  run: |
+    ~/.local/bin/dcg test --format json "git reset --hard HEAD~1" > /tmp/dcg-test.json
+    jq -e '.decision == "allow"' /tmp/dcg-test.json
+```
+
+#### Troubleshooting
+
+- Use `--format json` (or `DCG_FORMAT=json`) for machine parsing.
+- Add `--no-color` if logs or parsers choke on ANSI output.
+- If results differ between environments, check config precedence (`DCG_CONFIG`, project `.dcg.toml`, user/system config).
+- If a command is unexpectedly allowed, inspect active allowlists (`dcg allowlist list`) and enabled packs (`dcg packs --verbose`).
+- For full decision traces, run `dcg test --explain "<command>"` (or `dcg explain "<command>"`).
 
 ### Explain Mode
 

@@ -40,6 +40,10 @@ const DYNAMIC_FIELDS: &[&str] = &["allowOnceCode", "allowOnceFullHash"];
 
 /// Mask dynamic fields in JSON output for stable comparison.
 fn mask_dynamic_fields(mut json: Value) -> Value {
+    if json.get("dcg_version").is_some() {
+        json["dcg_version"] = Value::String("<DYNAMIC_VERSION>".to_string());
+    }
+
     if let Some(hook_output) = json.get_mut("hookSpecificOutput") {
         // Mask top-level dynamic fields
         for field in DYNAMIC_FIELDS {
@@ -87,14 +91,15 @@ fn compare_json_to_golden(actual_json: &Value, golden_path: &str) -> Result<(), 
     let golden_json: Value = serde_json::from_str(&golden_content)
         .map_err(|e| format!("Invalid JSON in golden file {golden_path}: {e}"))?;
 
+    let masked_golden = mask_dynamic_fields(golden_json);
     let masked_actual = mask_dynamic_fields(actual_json.clone());
 
-    if masked_actual == golden_json {
+    if masked_actual == masked_golden {
         return Ok(());
     }
 
     // Generate detailed diff
-    let diff = json_diff(&golden_json, &masked_actual);
+    let diff = json_diff(&masked_golden, &masked_actual);
 
     // If UPDATE_GOLDEN is set, update the golden file
     if std::env::var("UPDATE_GOLDEN").is_ok() {

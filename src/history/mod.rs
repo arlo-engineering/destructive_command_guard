@@ -271,10 +271,16 @@ fn generate_session_id() -> String {
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn history_worker(db: HistoryDb, receiver: mpsc::Receiver<HistoryMessage>, config: WorkerConfig) {
+fn history_worker(
+    mut db: HistoryDb,
+    receiver: mpsc::Receiver<HistoryMessage>,
+    config: WorkerConfig,
+) {
     let mut batch: Vec<CommandEntry> = Vec::with_capacity(config.batch_size);
     let mut last_flush = Instant::now();
     let mut last_prune_check = Instant::now();
+    let db_path = db.path().map(std::path::Path::to_path_buf);
+    let mut history_disabled = false;
 
     // Check if we need auto-prune on startup
     if config.auto_prune {
@@ -286,11 +292,20 @@ fn history_worker(db: HistoryDb, receiver: mpsc::Receiver<HistoryMessage>, confi
         let timeout = config.flush_interval.saturating_sub(last_flush.elapsed());
         match receiver.recv_timeout(timeout) {
             Ok(HistoryMessage::Entry(entry)) => {
+                if history_disabled {
+                    continue;
+                }
+
                 batch.push(*entry);
 
                 // Flush if batch is full
                 if batch.len() >= config.batch_size {
-                    flush_batch(&db, &mut batch);
+                    flush_batch_with_recovery(
+                        &mut db,
+                        &mut batch,
+                        db_path.as_ref(),
+                        &mut history_disabled,
+                    );
                     last_flush = Instant::now();
                 }
             }
@@ -316,10 +331,20 @@ fn history_worker(db: HistoryDb, receiver: mpsc::Receiver<HistoryMessage>, confi
                     if batch.is_empty() || should_shutdown {
                         break;
                     }
-                    flush_batch(&db, &mut batch);
+                    flush_batch_with_recovery(
+                        &mut db,
+                        &mut batch,
+                        db_path.as_ref(),
+                        &mut history_disabled,
+                    );
                 }
                 // Final flush for any remaining entries
-                flush_batch(&db, &mut batch);
+                flush_batch_with_recovery(
+                    &mut db,
+                    &mut batch,
+                    db_path.as_ref(),
+                    &mut history_disabled,
+                );
                 last_flush = Instant::now();
                 // Send all pending acks
                 for pending_ack in pending_acks {
@@ -344,7 +369,12 @@ fn history_worker(db: HistoryDb, receiver: mpsc::Receiver<HistoryMessage>, confi
                         HistoryMessage::Entry(_) => unreachable!(),
                     }
                 }
-                flush_batch(&db, &mut batch);
+                flush_batch_with_recovery(
+                    &mut db,
+                    &mut batch,
+                    db_path.as_ref(),
+                    &mut history_disabled,
+                );
                 // Send all pending acks before shutdown
                 for pending_ack in pending_acks {
                     let _ = pending_ack.send(());
@@ -360,12 +390,20 @@ fn history_worker(db: HistoryDb, receiver: mpsc::Receiver<HistoryMessage>, confi
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 // Periodic flush on timeout
                 if !batch.is_empty() {
-                    flush_batch(&db, &mut batch);
+                    flush_batch_with_recovery(
+                        &mut db,
+                        &mut batch,
+                        db_path.as_ref(),
+                        &mut history_disabled,
+                    );
                     last_flush = Instant::now();
                 }
 
                 // Check for auto-prune periodically
-                if config.auto_prune && last_prune_check.elapsed() >= config.prune_check_interval {
+                if !history_disabled
+                    && config.auto_prune
+                    && last_prune_check.elapsed() >= config.prune_check_interval
+                {
                     check_and_prune(&db, config.retention_days);
                     last_prune_check = Instant::now();
                 }
@@ -373,11 +411,76 @@ fn history_worker(db: HistoryDb, receiver: mpsc::Receiver<HistoryMessage>, confi
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 // Channel closed, flush and exit
                 debug!("History channel disconnected, performing final flush");
-                flush_batch(&db, &mut batch);
+                flush_batch_with_recovery(
+                    &mut db,
+                    &mut batch,
+                    db_path.as_ref(),
+                    &mut history_disabled,
+                );
                 if let Err(e) = db.checkpoint() {
                     warn!(error = %e, "WAL checkpoint failed on channel disconnect");
                 }
                 break;
+            }
+        }
+    }
+}
+
+fn recover_history_db(db: &mut HistoryDb, db_path: Option<&std::path::PathBuf>) -> bool {
+    let Some(path) = db_path else {
+        return false;
+    };
+
+    match HistoryDb::open(Some(path.clone())) {
+        Ok(recovered_db) => {
+            *db = recovered_db;
+            true
+        }
+        Err(e) => {
+            error!(
+                error = %e,
+                path = %path.display(),
+                "Failed to recover history DB after fatal storage error"
+            );
+            false
+        }
+    }
+}
+
+fn flush_batch_with_recovery(
+    db: &mut HistoryDb,
+    batch: &mut Vec<CommandEntry>,
+    db_path: Option<&std::path::PathBuf>,
+    history_disabled: &mut bool,
+) {
+    if *history_disabled {
+        batch.clear();
+        return;
+    }
+
+    match flush_batch(db, batch) {
+        FlushOutcome::Success => {}
+        FlushOutcome::Fatal => {
+            warn!("Detected fatal history storage error; attempting DB recovery");
+            if recover_history_db(db, db_path) {
+                match flush_batch(db, batch) {
+                    FlushOutcome::Success => {
+                        debug!("History DB recovery succeeded");
+                    }
+                    FlushOutcome::Fatal => {
+                        *history_disabled = true;
+                        batch.clear();
+                        error!(
+                            "History DB remained unusable after recovery; disabling history writes for this process"
+                        );
+                    }
+                }
+            } else {
+                *history_disabled = true;
+                batch.clear();
+                error!(
+                    "History DB recovery unavailable; disabling history writes for this process"
+                );
             }
         }
     }
@@ -412,10 +515,21 @@ fn drain_entries_into_batch(
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FlushOutcome {
+    Success,
+    Fatal,
+}
+
+fn is_fatal_storage_error(error: &HistoryError) -> bool {
+    let lower = error.to_string().to_ascii_lowercase();
+    lower.contains("io_uring") && (lower.contains("panicked") || lower.contains("lock poisoned"))
+}
+
 /// Flush the batch to the database.
-fn flush_batch(db: &HistoryDb, batch: &mut Vec<CommandEntry>) {
+fn flush_batch(db: &HistoryDb, batch: &mut Vec<CommandEntry>) -> FlushOutcome {
     if batch.is_empty() {
-        return;
+        return FlushOutcome::Success;
     }
 
     let batch_len = batch.len();
@@ -428,6 +542,14 @@ fn flush_batch(db: &HistoryDb, batch: &mut Vec<CommandEntry>) {
                 trace!(count = batch_len, "Batch insert succeeded");
             }
             Err(e) => {
+                if is_fatal_storage_error(&e) {
+                    error!(
+                        error = %e,
+                        batch_size = batch_len,
+                        "Fatal history storage error in batch insert"
+                    );
+                    return FlushOutcome::Fatal;
+                }
                 warn!(
                     error = %e,
                     batch_size = batch_len,
@@ -440,6 +562,14 @@ fn flush_batch(db: &HistoryDb, batch: &mut Vec<CommandEntry>) {
                     match db.log_command(entry) {
                         Ok(_id) => success_count += 1,
                         Err(insert_err) => {
+                            if is_fatal_storage_error(&insert_err) {
+                                error!(
+                                    error = %insert_err,
+                                    command = %entry.command,
+                                    "Fatal history storage error in single-row insert"
+                                );
+                                return FlushOutcome::Fatal;
+                            }
                             error_count += 1;
                             // Log first few errors, then summarize
                             if error_count <= 3 {
@@ -472,16 +602,27 @@ fn flush_batch(db: &HistoryDb, batch: &mut Vec<CommandEntry>) {
         for entry in batch.iter() {
             match db.log_command(entry) {
                 Ok(_id) => trace!(command = %entry.command, "Inserted history entry"),
-                Err(e) => error!(
-                    error = %e,
-                    command = %entry.command,
-                    "Failed to insert history entry"
-                ),
+                Err(e) => {
+                    if is_fatal_storage_error(&e) {
+                        error!(
+                            error = %e,
+                            command = %entry.command,
+                            "Fatal history storage error in single-row insert"
+                        );
+                        return FlushOutcome::Fatal;
+                    }
+                    error!(
+                        error = %e,
+                        command = %entry.command,
+                        "Failed to insert history entry"
+                    );
+                }
             }
         }
     }
 
     batch.clear();
+    FlushOutcome::Success
 }
 
 /// Check if pruning is needed and perform it.

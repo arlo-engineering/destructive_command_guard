@@ -632,6 +632,15 @@ pub enum TestFormat {
     /// Structured JSON output
     #[value(alias = "sarif")]
     Json,
+    /// TOON output for token-efficient structured data
+    Toon,
+}
+
+impl TestFormat {
+    #[must_use]
+    pub const fn is_structured(self) -> bool {
+        matches!(self, Self::Json | Self::Toon)
+    }
 }
 
 /// Output format for packs list command.
@@ -1788,7 +1797,7 @@ pub fn run_command(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 // Convert TestFormat to ExplainFormat for explain mode
                 let explain_format = match effective_format {
                     TestFormat::Pretty => ExplainFormat::Pretty,
-                    TestFormat::Json => ExplainFormat::Json,
+                    TestFormat::Json | TestFormat::Toon => ExplainFormat::Json,
                 };
                 handle_explain(&effective_config, &command, explain_format, with_packs);
             } else {
@@ -3009,7 +3018,7 @@ fn should_prompt_interactively(
     severity: Option<PackSeverity>,
     interactive_config: &InteractiveConfig,
 ) -> bool {
-    if format == TestFormat::Json || verbosity.quiet {
+    if format.is_structured() || verbosity.quiet {
         return false;
     }
 
@@ -3481,8 +3490,8 @@ fn test_command(
 
     let elapsed = start.elapsed();
 
-    // Handle JSON output
-    if format == TestFormat::Json {
+    // Handle structured output (JSON/TOON)
+    if format.is_structured() {
         let output = match result.decision {
             EvaluationDecision::Allow => {
                 let allowlist =
@@ -3571,7 +3580,17 @@ fn test_command(
                 }
             }
         };
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        match format {
+            TestFormat::Json => {
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            }
+            TestFormat::Toon => {
+                let json = serde_json::to_value(&output).expect("TestOutput should serialize");
+                let encoded = toon_rust::encode(&json, None).expect("TOON encoding should succeed");
+                println!("{encoded}");
+            }
+            TestFormat::Pretty => unreachable!("handled above"),
+        }
         return result.decision == EvaluationDecision::Deny;
     }
 
@@ -13230,6 +13249,21 @@ exclude = ["target/**"]
     }
 
     #[test]
+    fn test_cli_parse_test_with_format_toon() {
+        let cli =
+            Cli::try_parse_from(["dcg", "test", "--format", "toon", "rm -rf /tmp"]).expect("parse");
+        if let Some(Command::TestCommand {
+            command, format, ..
+        }) = cli.command
+        {
+            assert_eq!(command, "rm -rf /tmp");
+            assert_eq!(format, TestFormat::Toon);
+        } else {
+            unreachable!("Expected TestCommand");
+        }
+    }
+
+    #[test]
     fn test_cli_parse_test_without_explain_flag() {
         let cli = Cli::try_parse_from(["dcg", "test", "git status"]).expect("parse");
         if let Some(Command::TestCommand {
@@ -13245,6 +13279,36 @@ exclude = ["target/**"]
         } else {
             unreachable!("Expected TestCommand");
         }
+    }
+
+    #[test]
+    fn test_toon_roundtrip_for_test_output_payload() {
+        let payload = TestOutput {
+            schema_version: TEST_OUTPUT_SCHEMA_VERSION,
+            dcg_version: "v0.0.0-test".to_string(),
+            robot_mode: false,
+            command: "rm -rf /".to_string(),
+            decision: "deny".to_string(),
+            rule_id: Some("core.filesystem:rm-rf-root".to_string()),
+            pack_id: Some("core.filesystem".to_string()),
+            pattern_name: Some("rm-rf-root".to_string()),
+            reason: Some("Refusing to remove root directory".to_string()),
+            explanation: Some("Root path deletion is always destructive".to_string()),
+            source: Some("pack".to_string()),
+            matched_span: Some((0, 8)),
+            severity: Some("critical".to_string()),
+            allowlist: None,
+            agent: Some(AgentInfo {
+                detected: "unknown".to_string(),
+                trust_level: "medium".to_string(),
+                detection_method: "none".to_string(),
+            }),
+        };
+
+        let json = serde_json::to_value(&payload).expect("serialize payload to json");
+        let toon = toon_rust::encode(&json, None).expect("encode TOON payload");
+        let decoded = toon_rust::decode(&toon, None).expect("decode TOON payload");
+        assert_eq!(decoded, json);
     }
 
     // ========================================================================
@@ -13919,6 +13983,21 @@ exclude = ["target/**"]
         };
         assert!(!should_prompt_interactively(
             TestFormat::Json,
+            verbosity,
+            DecisionMode::Deny,
+            Some(PackSeverity::Medium),
+            &InteractiveConfig::default(),
+        ));
+    }
+
+    #[test]
+    fn prompt_disabled_for_toon_format() {
+        let verbosity = Verbosity {
+            level: 1,
+            quiet: false,
+        };
+        assert!(!should_prompt_interactively(
+            TestFormat::Toon,
             verbosity,
             DecisionMode::Deny,
             Some(PackSeverity::Medium),

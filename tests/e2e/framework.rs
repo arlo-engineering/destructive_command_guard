@@ -472,6 +472,19 @@ impl E2ETestContext {
 
 /// Find the DCG binary, preferring local build artifacts.
 fn find_dcg_binary() -> PathBuf {
+    // Cargo integration tests expose built binaries via CARGO_BIN_EXE_* env vars.
+    for env_var in [
+        "CARGO_BIN_EXE_dcg",
+        "CARGO_BIN_EXE_destructive_command_guard",
+    ] {
+        if let Some(path) = std::env::var_os(env_var)
+            .map(PathBuf::from)
+            .filter(|p| p.exists())
+        {
+            return std::fs::canonicalize(&path).unwrap_or(path);
+        }
+    }
+
     // Check for local build artifacts first
     let release_path = PathBuf::from("./target/release/dcg");
     if release_path.exists() {
