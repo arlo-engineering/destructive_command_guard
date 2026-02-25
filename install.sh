@@ -599,7 +599,8 @@ EOFSNIPPET
   for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
     if [ -e "$rc" ] && [ -w "$rc" ]; then
       if grep -qF "$DCG_SHELL_CHECK_MARKER" "$rc" 2>/dev/null; then
-        continue  # Already present
+        added=1  # Already present — don't trigger fallback
+        continue
       fi
       printf '%s\n' "$snippet" >> "$rc"
       added=1
