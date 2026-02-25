@@ -253,6 +253,26 @@ pub enum Command {
         force: bool,
     },
 
+    /// Full setup: install hook + add shell startup check
+    ///
+    /// Installs the dcg hook into Claude Code settings (like `dcg install`)
+    /// and optionally adds a shell startup check to ~/.bashrc and/or ~/.zshrc
+    /// that warns if the hook is ever silently removed.
+    #[command(name = "setup")]
+    Setup {
+        /// Force overwrite existing hook configuration
+        #[arg(long)]
+        force: bool,
+
+        /// Skip the interactive prompt and automatically add the shell check
+        #[arg(long)]
+        shell_check: bool,
+
+        /// Skip the shell startup check prompt
+        #[arg(long)]
+        no_shell_check: bool,
+    },
+
     /// Remove the hook from Claude Code settings
     #[command(name = "uninstall")]
     Uninstall {
@@ -1732,6 +1752,13 @@ pub fn run_command(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Command::Install { force }) => {
             install_hook(force)?;
+        }
+        Some(Command::Setup {
+            force,
+            shell_check,
+            no_shell_check,
+        }) => {
+            run_setup(force, shell_check, no_shell_check)?;
         }
         Some(Command::Uninstall { purge }) => {
             uninstall_hook(purge)?;
@@ -8782,6 +8809,195 @@ fn install_hook(force: bool) -> Result<(), Box<dyn std::error::Error>> {
         "{}",
         "Restart Claude Code for the changes to take effect.".yellow()
     );
+
+    Ok(())
+}
+
+/// The shell snippet that checks whether the DCG hook is still present in
+/// Claude Code settings on every new shell session. Runs in milliseconds,
+/// silent when the hook is present, yellow warning when missing.
+const DCG_SHELL_CHECK_SNIPPET: &str = r#"
+# dcg: warn if hook was silently removed from Claude Code settings
+if command -v dcg &>/dev/null && command -v jq &>/dev/null; then
+  if [ -f "$HOME/.claude/settings.json" ] && \
+     ! jq -e '.hooks.PreToolUse[]? | select(.hooks[]?.command | test("dcg$"))' \
+       "$HOME/.claude/settings.json" &>/dev/null; then
+    printf '\033[1;33m[dcg] Hook missing from ~/.claude/settings.json — run: dcg install\033[0m\n'
+  fi
+fi
+"#;
+
+/// Marker used to identify the DCG shell check block for idempotent injection.
+const DCG_SHELL_CHECK_MARKER: &str = "# dcg: warn if hook was silently removed";
+
+/// Check whether a shell RC file already contains the DCG startup check.
+fn rc_has_dcg_check(path: &std::path::Path) -> bool {
+    if let Ok(content) = std::fs::read_to_string(path) {
+        content.contains(DCG_SHELL_CHECK_MARKER)
+    } else {
+        false
+    }
+}
+
+/// Append the DCG shell startup check to a shell RC file.
+///
+/// Returns `Ok(true)` if the snippet was added, `Ok(false)` if it was already
+/// present.
+fn inject_shell_check(path: &std::path::Path) -> Result<bool, Box<dyn std::error::Error>> {
+    if rc_has_dcg_check(path) {
+        return Ok(false);
+    }
+
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+
+    use std::io::Write;
+    write!(file, "{}", DCG_SHELL_CHECK_SNIPPET)?;
+
+    Ok(true)
+}
+
+/// Full setup: install the hook and optionally add the shell startup check.
+///
+/// # Errors
+///
+/// Returns an error if hook installation or file I/O fails.
+fn run_setup(
+    force: bool,
+    auto_shell_check: bool,
+    no_shell_check: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use colored::Colorize;
+
+    // --- Step 1: Install the hook (same as `dcg install`) ---
+    install_hook(force)?;
+
+    // --- Step 2: Offer the shell startup check ---
+    if no_shell_check {
+        return Ok(());
+    }
+
+    let home = dirs::home_dir().ok_or("Could not determine home directory")?;
+
+    // Collect candidate RC files that actually exist (or that the user's
+    // current shell would source).
+    let mut rc_files: Vec<std::path::PathBuf> = Vec::new();
+    let zshrc = home.join(".zshrc");
+    let bashrc = home.join(".bashrc");
+
+    if zshrc.exists() {
+        rc_files.push(zshrc);
+    }
+    if bashrc.exists() {
+        rc_files.push(bashrc);
+    }
+
+    if rc_files.is_empty() {
+        // No RC files found — try to create one for the current shell.
+        if let Ok(shell) = std::env::var("SHELL") {
+            if shell.contains("zsh") {
+                rc_files.push(home.join(".zshrc"));
+            } else {
+                rc_files.push(home.join(".bashrc"));
+            }
+        } else {
+            rc_files.push(home.join(".bashrc"));
+        }
+    }
+
+    // Check if all candidates already have the snippet.
+    let all_present = rc_files.iter().all(|p| rc_has_dcg_check(p));
+    if all_present {
+        println!();
+        println!(
+            "{}",
+            "Shell startup check already present in all RC files.".green()
+        );
+        return Ok(());
+    }
+
+    // Decide whether to inject.
+    let should_inject = if auto_shell_check {
+        true
+    } else if std::io::stdin().is_terminal() {
+        println!();
+        println!(
+            "{}",
+            "Shell startup check".cyan().bold()
+        );
+        println!(
+            "Claude Code can silently remove the dcg hook when it rewrites settings.json."
+        );
+        println!(
+            "A small shell check in your RC file will warn you on every new terminal"
+        );
+        println!("if the hook goes missing. It runs in milliseconds and is silent normally.");
+        println!();
+
+        let targets: Vec<String> = rc_files
+            .iter()
+            .filter(|p| !rc_has_dcg_check(p))
+            .map(|p| format!("  {}", p.display()))
+            .collect();
+
+        println!("Would add to:");
+        for t in &targets {
+            println!("{}", t.dimmed());
+        }
+        println!();
+
+        let answer = inquire::Confirm::new("Add shell startup check?")
+            .with_default(true)
+            .prompt();
+
+        matches!(answer, Ok(true))
+    } else {
+        // Non-interactive: skip unless --shell-check was passed.
+        false
+    };
+
+    if should_inject {
+        for rc_path in &rc_files {
+            match inject_shell_check(rc_path) {
+                Ok(true) => {
+                    println!(
+                        "{} {}",
+                        "Added shell check to".green(),
+                        rc_path.display()
+                    );
+                }
+                Ok(false) => {
+                    println!(
+                        "{} {}",
+                        "Already present in".yellow(),
+                        rc_path.display()
+                    );
+                }
+                Err(e) => {
+                    eprintln!(
+                        "{} {}: {}",
+                        "Failed to update".red(),
+                        rc_path.display(),
+                        e
+                    );
+                }
+            }
+        }
+        println!();
+        println!(
+            "{}",
+            "Restart your shell (or source your RC file) to activate the check.".yellow()
+        );
+    } else {
+        println!();
+        println!(
+            "{}",
+            "Skipped shell startup check. You can add it later with: dcg setup --shell-check"
+                .dimmed()
+        );
+    }
 
     Ok(())
 }
