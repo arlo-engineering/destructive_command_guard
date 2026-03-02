@@ -38,6 +38,8 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("redis-keys", r"(?i)\bKEYS\b"),
         // DBSIZE is safe
         safe_pattern!("redis-dbsize", r"(?i)\bDBSIZE\b"),
+        // CONFIG GET is read-only
+        safe_pattern!("redis-config-get", r"(?i)\bCONFIG\s+GET\b"),
     ]
 }
 
@@ -143,6 +145,76 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              Disable in production:\n  \
              rename-command CONFIG \"\"  # In redis.conf\n\n\
              Use ACLs to restrict these commands."
+        ),
+        // CONFIG SET maxmemory can trigger mass key eviction
+        destructive_pattern!(
+            "config-set-maxmemory",
+            r"(?i)\bCONFIG\s+SET\s+maxmemory\b",
+            "CONFIG SET maxmemory can trigger immediate mass key eviction if new limit is below current usage.",
+            Critical,
+            "Lowering maxmemory below current usage causes Redis to evict keys immediately\n\
+             according to the active eviction policy:\n\n\
+             - volatile-lru/allkeys-lru: Silently deletes keys to fit budget\n\
+             - noeviction: Returns OOM errors on writes\n\n\
+             Check current usage first:\n  \
+             INFO memory  # Look at used_memory vs maxmemory\n\n\
+             Prefer gradual reduction or off-peak changes."
+        ),
+        // CONFIG SET maxmemory-policy changes eviction behavior
+        destructive_pattern!(
+            "config-set-maxmemory-policy",
+            r"(?i)\bCONFIG\s+SET\s+maxmemory-policy\b",
+            "CONFIG SET maxmemory-policy changes how Redis evicts keys, risking silent data loss.",
+            Critical,
+            "Switching eviction policy can silently delete keys:\n\n\
+             - noeviction -> allkeys-lru: Enables silent key deletion\n\
+             - volatile-* -> allkeys-*: Extends eviction to non-expiring keys\n\n\
+             Check current policy:\n  \
+             CONFIG GET maxmemory-policy\n\n\
+             Ensure application logic handles the new eviction behavior."
+        ),
+        // CONFIG SET save can disable RDB persistence
+        destructive_pattern!(
+            "config-set-save",
+            r#"(?i)\bCONFIG\s+SET\s+save\b"#,
+            "CONFIG SET save can disable RDB persistence entirely, risking data loss on restart.",
+            High,
+            "CONFIG SET save \"\" disables all RDB snapshots:\n\n\
+             - No automatic persistence to disk\n\
+             - All data lost on restart unless AOF is enabled\n\
+             - Existing RDB file may become stale\n\n\
+             Check current persistence:\n  \
+             CONFIG GET save\n  \
+             CONFIG GET appendonly\n\n\
+             Ensure at least one persistence mechanism remains active."
+        ),
+        // CONFIG SET appendonly can disable AOF persistence
+        destructive_pattern!(
+            "config-set-appendonly",
+            r"(?i)\bCONFIG\s+SET\s+appendonly\b",
+            "CONFIG SET appendonly can disable AOF persistence, risking data loss on restart.",
+            High,
+            "Disabling AOF without RDB means zero persistence:\n\n\
+             - CONFIG SET appendonly no: Stops AOF logging\n\
+             - Combined with disabled RDB: complete data loss on crash/restart\n\n\
+             Check other persistence mechanisms:\n  \
+             CONFIG GET save\n  \
+             CONFIG GET appendonly\n\n\
+             Ensure at least one persistence mechanism remains active."
+        ),
+        // CONFIG REWRITE persists runtime changes to disk
+        destructive_pattern!(
+            "config-rewrite",
+            r"(?i)\bCONFIG\s+REWRITE\b",
+            "CONFIG REWRITE persists all runtime CONFIG SET changes to redis.conf permanently.",
+            High,
+            "CONFIG REWRITE writes current runtime config back to redis.conf:\n\n\
+             - Makes all CONFIG SET changes survive restarts\n\
+             - Can persist dangerous temporary changes permanently\n\
+             - No undo: must manually edit redis.conf to revert\n\n\
+             Review current runtime changes first:\n  \
+             CONFIG GET *  # Compare with original redis.conf\n\n\
+             Ensure no dangerous CONFIG SET changes are pending before rewriting."
         ),
     ]
 }
