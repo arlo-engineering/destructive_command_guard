@@ -251,6 +251,11 @@ pub enum Command {
         /// Force overwrite existing hook configuration
         #[arg(long)]
         force: bool,
+
+        /// Install to project-level `.claude/settings.json` (in the current repo)
+        /// instead of user-level `~/.claude/settings.json`
+        #[arg(long)]
+        project: bool,
     },
 
     /// Full setup: install hook + add shell startup check
@@ -1159,6 +1164,15 @@ pub struct UpdateCommand {
     /// List available backup versions that can be restored
     #[arg(long, conflicts_with_all = ["check", "version", "system", "easy_mode", "from_source", "rollback"])]
     pub list_versions: bool,
+
+    /// Only update the binary; skip hook configuration and shell RC modifications.
+    ///
+    /// Equivalent to passing `--no-configure` to the installer. Useful when the
+    /// hook is managed at the project level (`.claude/settings.json`) and you
+    /// don't want `dcg update` to re-add the hook to user-level settings or
+    /// re-inject the shell startup check.
+    #[arg(long, visible_alias = "binary-only", conflicts_with_all = ["check", "rollback", "list_versions"])]
+    pub no_configure: bool,
 }
 
 /// Output format for update --check command.
@@ -1750,8 +1764,8 @@ pub fn run_command(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Some(Command::Hook(cmd)) => {
             run_hook_command(&config, &cmd)?;
         }
-        Some(Command::Install { force }) => {
-            install_hook(force)?;
+        Some(Command::Install { force, project }) => {
+            install_hook(force, project)?;
         }
         Some(Command::Setup {
             force,
@@ -7960,7 +7974,7 @@ fn doctor_pretty(fix: bool) {
         issues += 1;
         if fix {
             println!("  Attempting to register hook...");
-            if install_hook(false).is_ok() {
+            if install_hook(false, false).is_ok() {
                 println!("  {}", "Fixed!".green());
                 fixed += 1;
             } else {
@@ -8794,16 +8808,24 @@ fn uninstall_dcg_hook_from_settings(
 
 /// Install the dcg hook entry into Claude Code settings.
 ///
+/// When `project` is `true`, writes to `.claude/settings.json` inside the
+/// current git repository root instead of the user-level
+/// `~/.claude/settings.json`.
+///
 /// This is a wrapper around `install_dcg_hook_into_settings` that handles the
 /// file I/O and error reporting.
 ///
 /// # Errors
 ///
 /// Returns an error if the settings file cannot be read, parsed, or written.
-fn install_hook(force: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn install_hook(force: bool, project: bool) -> Result<(), Box<dyn std::error::Error>> {
     use colored::Colorize;
 
-    let settings_path = claude_settings_path();
+    let settings_path = if project {
+        project_claude_settings_path()?
+    } else {
+        claude_settings_path()
+    };
 
     // Read existing settings or create new
     let mut settings: serde_json::Value = if settings_path.exists() {
@@ -8828,8 +8850,9 @@ fn install_hook(force: bool) -> Result<(), Box<dyn std::error::Error>> {
     let content = serde_json::to_string_pretty(&settings)?;
     std::fs::write(&settings_path, content)?;
 
+    let level = if project { "project" } else { "user" };
     println!("{}", "Hook installed successfully!".green().bold());
-    println!("Settings updated: {}", settings_path.display());
+    println!("Settings updated ({level}): {}", settings_path.display());
     println!();
     println!(
         "{}",
@@ -8898,7 +8921,7 @@ fn run_setup(
     use colored::Colorize;
 
     // --- Step 1: Install the hook (same as `dcg install`) ---
-    install_hook(force)?;
+    install_hook(force, false)?;
 
     // --- Step 2: Offer the shell startup check ---
     if no_shell_check {
@@ -9198,6 +9221,9 @@ fn self_update_unix(update: UpdateCommand) -> Result<(), Box<dyn std::error::Err
     if update.force {
         args.push("--force".to_string());
     }
+    if update.no_configure {
+        args.push("--no-configure".to_string());
+    }
 
     let mut escaped_args = String::new();
     for (idx, arg) in args.iter().enumerate() {
@@ -9230,7 +9256,13 @@ fn self_update_unix(update: UpdateCommand) -> Result<(), Box<dyn std::error::Err
 }
 
 fn self_update_windows(update: UpdateCommand) -> Result<(), Box<dyn std::error::Error>> {
-    if update.system || update.from_source || update.quiet || update.no_gum || update.force {
+    if update.system
+        || update.from_source
+        || update.quiet
+        || update.no_gum
+        || update.force
+        || update.no_configure
+    {
         return Err(
             "Windows updater supports only --version, --dest, --easy-mode, and --verify.".into(),
         );
@@ -9318,12 +9350,22 @@ fn shell_escape_powershell(value: &str) -> String {
     escaped
 }
 
-/// Get the path to Claude Code settings
+/// Get the path to user-level Claude Code settings (`~/.claude/settings.json`).
 fn claude_settings_path() -> std::path::PathBuf {
     dirs::home_dir()
         .unwrap_or_default()
         .join(".claude")
         .join("settings.json")
+}
+
+/// Get the path to project-level Claude Code settings (`.claude/settings.json`
+/// relative to the current repository root).
+///
+/// Returns `Err` if the current directory is not inside a git repository.
+fn project_claude_settings_path() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let repo_root = find_repo_root_from_cwd()
+        .ok_or("Not inside a git repository — cannot determine project root")?;
+    Ok(repo_root.join(".claude").join("settings.json"))
 }
 
 /// Get the path to dcg config directory.
@@ -12268,6 +12310,48 @@ mod tests {
             assert_eq!(update.version.as_deref(), Some("v0.2.0"));
         } else {
             unreachable!("Expected Update command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_update_no_configure() {
+        let cli = Cli::parse_from(["dcg", "update", "--no-configure"]);
+        if let Some(Command::Update(update)) = cli.command {
+            assert!(update.no_configure);
+        } else {
+            unreachable!("Expected Update command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_update_binary_only_alias() {
+        let cli = Cli::parse_from(["dcg", "update", "--binary-only"]);
+        if let Some(Command::Update(update)) = cli.command {
+            assert!(update.no_configure, "--binary-only should set no_configure");
+        } else {
+            unreachable!("Expected Update command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_install_project() {
+        let cli = Cli::parse_from(["dcg", "install", "--project"]);
+        if let Some(Command::Install { force, project }) = cli.command {
+            assert!(!force);
+            assert!(project);
+        } else {
+            unreachable!("Expected Install command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_install_force_and_project() {
+        let cli = Cli::parse_from(["dcg", "install", "--force", "--project"]);
+        if let Some(Command::Install { force, project }) = cli.command {
+            assert!(force);
+            assert!(project);
+        } else {
+            unreachable!("Expected Install command");
         }
     }
 
