@@ -795,7 +795,7 @@ impl EnabledKeywordIndex {
 
 /// Static pack entries - metadata is available without instantiating packs.
 /// Packs are built lazily on first access.
-static PACK_ENTRIES: [PackEntry; 82] = [
+static PACK_ENTRIES: [PackEntry; 83] = [
     PackEntry::new("core.git", &["git"], core::git::create_pack),
     PackEntry::new(
         "core.filesystem",
@@ -1109,6 +1109,18 @@ static PACK_ENTRIES: [PackEntry; 82] = [
         "database.sqlite",
         &["sqlite3", "DROP", "DELETE", "TRUNCATE"],
         database::sqlite::create_pack,
+    ),
+    PackEntry::new(
+        "database.supabase",
+        &[
+            "supabase",
+            "db reset",
+            "db push",
+            "migration repair",
+            "projects delete",
+            "orgs delete",
+        ],
+        database::supabase::create_pack,
     ),
     PackEntry::new(
         "containers.docker",
