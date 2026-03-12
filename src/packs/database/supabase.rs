@@ -141,6 +141,11 @@ fn create_safe_patterns() -> Vec<SafePattern> {
             "supabase-migration-new",
             r"supabase\s+migration\s+new"
         ),
+        // supabase db push --dry-run is safe (preview only, no changes applied)
+        safe_pattern!(
+            "supabase-db-push-dry-run",
+            r"supabase\s+db\s+push\s+--dry-run"
+        ),
     ]
 }
 
@@ -268,7 +273,6 @@ mod tests {
         let pack = create_pack();
         assert_blocks(&pack, "supabase db push", "db push");
         assert_blocks(&pack, "supabase db push --linked", "db push");
-        assert_blocks(&pack, "supabase db push --dry-run", "db push");
     }
 
     #[test]
@@ -329,5 +333,6 @@ mod tests {
         assert_allows(&pack, "supabase db shell");
         assert_allows(&pack, "supabase migration list");
         assert_allows(&pack, "supabase migration new create_users");
+        assert_allows(&pack, "supabase db push --dry-run");
     }
 }
