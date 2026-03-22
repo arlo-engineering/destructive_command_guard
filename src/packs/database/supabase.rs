@@ -138,12 +138,10 @@ const STORAGE_RM_SUGGESTIONS: &[PatternSuggestion] = &[
 // -- Secrets -----------------------------------------------------------------
 
 /// Suggestions for `supabase secrets unset` pattern.
-const SECRETS_UNSET_SUGGESTIONS: &[PatternSuggestion] = &[
-    PatternSuggestion::new(
-        "supabase secrets list",
-        "List secrets to verify before removing",
-    ),
-];
+const SECRETS_UNSET_SUGGESTIONS: &[PatternSuggestion] = &[PatternSuggestion::new(
+    "supabase secrets list",
+    "List secrets to verify before removing",
+)];
 
 // -- Infrastructure ----------------------------------------------------------
 
@@ -186,37 +184,28 @@ const BRANCHES_DELETE_SUGGESTIONS: &[PatternSuggestion] = &[
 // -- Networking & Domains ----------------------------------------------------
 
 /// Suggestions for `supabase domains delete` pattern.
-const DOMAINS_DELETE_SUGGESTIONS: &[PatternSuggestion] = &[
-    PatternSuggestion::new(
-        "supabase domains get",
-        "Check current domain configuration before deleting",
-    ),
-];
+const DOMAINS_DELETE_SUGGESTIONS: &[PatternSuggestion] = &[PatternSuggestion::new(
+    "supabase domains get",
+    "Check current domain configuration before deleting",
+)];
 
 /// Suggestions for `supabase vanity-subdomains delete` pattern.
-const VANITY_SUBDOMAINS_DELETE_SUGGESTIONS: &[PatternSuggestion] = &[
-    PatternSuggestion::new(
-        "supabase vanity-subdomains get",
-        "Check current vanity subdomain before deleting",
-    ),
-];
+const VANITY_SUBDOMAINS_DELETE_SUGGESTIONS: &[PatternSuggestion] = &[PatternSuggestion::new(
+    "supabase vanity-subdomains get",
+    "Check current vanity subdomain before deleting",
+)];
 
 /// Suggestions for `supabase network-restrictions update` pattern.
-const NETWORK_RESTRICTIONS_SUGGESTIONS: &[PatternSuggestion] = &[
-    PatternSuggestion::new(
-        "supabase network-restrictions get",
-        "Check current network restrictions before modifying",
-    ),
-];
+const NETWORK_RESTRICTIONS_SUGGESTIONS: &[PatternSuggestion] = &[PatternSuggestion::new(
+    "supabase network-restrictions get",
+    "Check current network restrictions before modifying",
+)];
 
 // -- Auth --------------------------------------------------------------------
 
 /// Suggestions for `supabase sso remove` pattern.
 const SSO_REMOVE_SUGGESTIONS: &[PatternSuggestion] = &[
-    PatternSuggestion::new(
-        "supabase sso list",
-        "List SSO providers before removing",
-    ),
+    PatternSuggestion::new("supabase sso list", "List SSO providers before removing"),
     PatternSuggestion::new(
         "supabase sso show --id {provider_id}",
         "Inspect SSO provider details before removing",
@@ -226,20 +215,16 @@ const SSO_REMOVE_SUGGESTIONS: &[PatternSuggestion] = &[
 // -- Config & Local ----------------------------------------------------------
 
 /// Suggestions for `supabase config push` pattern.
-const CONFIG_PUSH_SUGGESTIONS: &[PatternSuggestion] = &[
-    PatternSuggestion::new(
-        "supabase inspect db bloat",
-        "Inspect the remote database state before pushing config",
-    ),
-];
+const CONFIG_PUSH_SUGGESTIONS: &[PatternSuggestion] = &[PatternSuggestion::new(
+    "supabase inspect db bloat",
+    "Inspect the remote database state before pushing config",
+)];
 
 /// Suggestions for `supabase stop --no-backup` pattern.
-const STOP_NO_BACKUP_SUGGESTIONS: &[PatternSuggestion] = &[
-    PatternSuggestion::new(
-        "supabase stop",
-        "Stop local stack while preserving data backups",
-    ),
-];
+const STOP_NO_BACKUP_SUGGESTIONS: &[PatternSuggestion] = &[PatternSuggestion::new(
+    "supabase stop",
+    "Stop local stack while preserving data backups",
+)];
 
 // ============================================================================
 // Pack constructor
@@ -291,10 +276,7 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("supabase-db-diff", r"supabase\s+db\s+diff"),
         safe_pattern!("supabase-db-lint", r"supabase\s+db\s+lint"),
         safe_pattern!("supabase-db-dump", r"supabase\s+db\s+dump"),
-        safe_pattern!(
-            "supabase-db-shell-safe",
-            r"(?i)supabase\s+db\s+shell\s*$"
-        ),
+        safe_pattern!("supabase-db-shell-safe", r"(?i)supabase\s+db\s+shell\s*$"),
         safe_pattern!("supabase-inspect-db", r"supabase\s+inspect\s+db"),
         // -- Status & info --
         safe_pattern!("supabase-status", r"supabase\s+status"),
@@ -303,62 +285,32 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("supabase-gen-types", r"supabase\s+gen\s+types"),
         safe_pattern!("supabase-test-db", r"supabase\s+test\s+db"),
         // -- Migrations read-only --
-        safe_pattern!(
-            "supabase-migration-list",
-            r"supabase\s+migration\s+list"
-        ),
-        safe_pattern!(
-            "supabase-migration-new",
-            r"supabase\s+migration\s+new"
-        ),
-        safe_pattern!(
-            "supabase-migration-fetch",
-            r"supabase\s+migration\s+fetch"
-        ),
+        safe_pattern!("supabase-migration-list", r"supabase\s+migration\s+list"),
+        safe_pattern!("supabase-migration-new", r"supabase\s+migration\s+new"),
+        safe_pattern!("supabase-migration-fetch", r"supabase\s+migration\s+fetch"),
         // supabase db push --dry-run (anywhere in args) is safe
         safe_pattern!(
             "supabase-db-push-dry-run",
             r"supabase\s+db\s+push\b.*--dry-run"
         ),
         // -- Functions read-only --
-        safe_pattern!(
-            "supabase-functions-list",
-            r"supabase\s+functions\s+list"
-        ),
-        safe_pattern!(
-            "supabase-functions-serve",
-            r"supabase\s+functions\s+serve"
-        ),
+        safe_pattern!("supabase-functions-list", r"supabase\s+functions\s+list"),
+        safe_pattern!("supabase-functions-serve", r"supabase\s+functions\s+serve"),
         safe_pattern!(
             "supabase-functions-download",
             r"supabase\s+functions\s+download"
         ),
-        safe_pattern!(
-            "supabase-functions-new",
-            r"supabase\s+functions\s+new"
-        ),
+        safe_pattern!("supabase-functions-new", r"supabase\s+functions\s+new"),
         // -- Secrets read-only --
-        safe_pattern!(
-            "supabase-secrets-list",
-            r"supabase\s+secrets\s+list"
-        ),
+        safe_pattern!("supabase-secrets-list", r"supabase\s+secrets\s+list"),
         // -- Storage read-only --
         safe_pattern!("supabase-storage-ls", r"supabase\s+storage\s+ls"),
         // -- Projects/Orgs read-only --
-        safe_pattern!(
-            "supabase-projects-list",
-            r"supabase\s+projects\s+list"
-        ),
+        safe_pattern!("supabase-projects-list", r"supabase\s+projects\s+list"),
         safe_pattern!("supabase-orgs-list", r"supabase\s+orgs\s+list"),
         // -- Branches read-only --
-        safe_pattern!(
-            "supabase-branches-list",
-            r"supabase\s+branches\s+list"
-        ),
-        safe_pattern!(
-            "supabase-branches-get",
-            r"supabase\s+branches\s+get"
-        ),
+        safe_pattern!("supabase-branches-list", r"supabase\s+branches\s+list"),
+        safe_pattern!("supabase-branches-get", r"supabase\s+branches\s+get"),
         // -- Domains read-only --
         safe_pattern!("supabase-domains-get", r"supabase\s+domains\s+get"),
         safe_pattern!(
@@ -460,7 +412,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase db shell -- -c 'SELECT COUNT(*) FROM tablename'",
             DB_SHELL_DESTRUCTIVE_SUGGESTIONS
         ),
-
         // ================================================================
         // Migrations
         // ================================================================
@@ -515,7 +466,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase db dump -f backup.sql",
             MIGRATION_SQUASH_SUGGESTIONS
         ),
-
         // ================================================================
         // Functions
         // ================================================================
@@ -536,7 +486,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase functions download {function_name}",
             FUNCTIONS_DELETE_SUGGESTIONS
         ),
-
         // ================================================================
         // Storage
         // ================================================================
@@ -557,7 +506,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase storage cp {path} ./backup/",
             STORAGE_RM_SUGGESTIONS
         ),
-
         // ================================================================
         // Secrets
         // ================================================================
@@ -576,7 +524,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase secrets list",
             SECRETS_UNSET_SUGGESTIONS
         ),
-
         // ================================================================
         // Infrastructure
         // ================================================================
@@ -633,7 +580,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase branches get --id {branch_id}",
             BRANCHES_DELETE_SUGGESTIONS
         ),
-
         // ================================================================
         // Networking & Domains
         // ================================================================
@@ -680,7 +626,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase network-restrictions get",
             NETWORK_RESTRICTIONS_SUGGESTIONS
         ),
-
         // ================================================================
         // Auth (SSO)
         // ================================================================
@@ -701,7 +646,6 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              supabase sso show --id {provider_id}",
             SSO_REMOVE_SUGGESTIONS
         ),
-
         // ================================================================
         // Config & Local
         // ================================================================
@@ -813,11 +757,7 @@ mod tests {
     fn test_migration_down() {
         let pack = create_pack();
         assert_blocks(&pack, "supabase migration down", "migration down");
-        assert_blocks(
-            &pack,
-            "supabase migration down --linked",
-            "migration down",
-        );
+        assert_blocks(&pack, "supabase migration down --linked", "migration down");
         assert_blocks(
             &pack,
             "supabase migration down --version 2",
@@ -886,11 +826,7 @@ mod tests {
     #[test]
     fn test_secrets_unset() {
         let pack = create_pack();
-        assert_blocks(
-            &pack,
-            "supabase secrets unset MY_SECRET",
-            "secrets unset",
-        );
+        assert_blocks(&pack, "supabase secrets unset MY_SECRET", "secrets unset");
         assert_blocks(
             &pack,
             "supabase secrets unset KEY1 KEY2 KEY3",
@@ -923,11 +859,7 @@ mod tests {
     #[test]
     fn test_branches_delete() {
         let pack = create_pack();
-        assert_blocks(
-            &pack,
-            "supabase branches delete abc123",
-            "branches delete",
-        );
+        assert_blocks(&pack, "supabase branches delete abc123", "branches delete");
         assert_blocks(
             &pack,
             "supabase branches delete --id abc123",
@@ -977,16 +909,8 @@ mod tests {
     #[test]
     fn test_sso_remove() {
         let pack = create_pack();
-        assert_blocks(
-            &pack,
-            "supabase sso remove provider-id",
-            "sso remove",
-        );
-        assert_blocks(
-            &pack,
-            "supabase sso remove --id provider-id",
-            "sso remove",
-        );
+        assert_blocks(&pack, "supabase sso remove provider-id", "sso remove");
+        assert_blocks(&pack, "supabase sso remove --id provider-id", "sso remove");
     }
 
     // ====================================================================
@@ -1007,21 +931,9 @@ mod tests {
     #[test]
     fn test_stop_no_backup() {
         let pack = create_pack();
-        assert_blocks(
-            &pack,
-            "supabase stop --no-backup",
-            "stop --no-backup",
-        );
-        assert_blocks(
-            &pack,
-            "supabase stop --all --no-backup",
-            "stop --no-backup",
-        );
-        assert_blocks(
-            &pack,
-            "supabase stop --no-backup --all",
-            "stop --no-backup",
-        );
+        assert_blocks(&pack, "supabase stop --no-backup", "stop --no-backup");
+        assert_blocks(&pack, "supabase stop --all --no-backup", "stop --no-backup");
+        assert_blocks(&pack, "supabase stop --no-backup --all", "stop --no-backup");
     }
 
     // ====================================================================
@@ -1095,7 +1007,10 @@ mod tests {
         assert_allows(&pack, "supabase domains get");
         assert_allows(&pack, "supabase domains reverify");
         assert_allows(&pack, "supabase vanity-subdomains get");
-        assert_allows(&pack, "supabase vanity-subdomains check-availability my-sub");
+        assert_allows(
+            &pack,
+            "supabase vanity-subdomains check-availability my-sub",
+        );
     }
 
     #[test]

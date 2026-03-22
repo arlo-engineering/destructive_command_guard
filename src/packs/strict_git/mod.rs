@@ -8,8 +8,8 @@
 //! - Block `git add .` / `git add -A` (stage everything blindly)
 //! - Block direct pushes to main/master (should use PRs)
 
-use crate::packs::{DestructivePattern, Pack, SafePattern};
 use crate::destructive_pattern;
+use crate::packs::{DestructivePattern, Pack, SafePattern};
 
 /// Create the strict git pack.
 #[must_use]

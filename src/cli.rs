@@ -8972,16 +8972,9 @@ fn run_setup(
         true
     } else if std::io::stdin().is_terminal() {
         println!();
-        println!(
-            "{}",
-            "Shell startup check".cyan().bold()
-        );
-        println!(
-            "Claude Code can silently remove the dcg hook when it rewrites settings.json."
-        );
-        println!(
-            "A small shell check in your RC file will warn you on every new terminal"
-        );
+        println!("{}", "Shell startup check".cyan().bold());
+        println!("Claude Code can silently remove the dcg hook when it rewrites settings.json.");
+        println!("A small shell check in your RC file will warn you on every new terminal");
         println!("if the hook goes missing. It runs in milliseconds and is silent normally.");
         println!();
 
@@ -9011,26 +9004,13 @@ fn run_setup(
         for rc_path in &rc_files {
             match inject_shell_check(rc_path) {
                 Ok(true) => {
-                    println!(
-                        "{} {}",
-                        "Added shell check to".green(),
-                        rc_path.display()
-                    );
+                    println!("{} {}", "Added shell check to".green(), rc_path.display());
                 }
                 Ok(false) => {
-                    println!(
-                        "{} {}",
-                        "Already present in".yellow(),
-                        rc_path.display()
-                    );
+                    println!("{} {}", "Already present in".yellow(), rc_path.display());
                 }
                 Err(e) => {
-                    eprintln!(
-                        "{} {}: {}",
-                        "Failed to update".red(),
-                        rc_path.display(),
-                        e
-                    );
+                    eprintln!("{} {}: {}", "Failed to update".red(), rc_path.display(), e);
                 }
             }
         }
@@ -14622,7 +14602,11 @@ exclude = ["target/**"]
                 "PreToolUse": []
             }
         });
-        std::fs::write(&settings_path, serde_json::to_string_pretty(&settings).unwrap()).unwrap();
+        std::fs::write(
+            &settings_path,
+            serde_json::to_string_pretty(&settings).unwrap(),
+        )
+        .unwrap();
 
         // Read it back, install the hook, and write
         let content = std::fs::read_to_string(&settings_path).unwrap();
@@ -14671,7 +14655,10 @@ exclude = ["target/**"]
         });
 
         let changed = install_dcg_hook_into_settings(&mut settings, false).unwrap();
-        assert!(changed, "should install hook into settings with no hooks key");
+        assert!(
+            changed,
+            "should install hook into settings with no hooks key"
+        );
 
         // Verify the structure was created correctly
         let is_registered = settings
@@ -14682,6 +14669,9 @@ exclude = ["target/**"]
         assert!(is_registered, "hook should be registered after self-heal");
 
         // Verify existing keys were preserved
-        assert!(settings.get("permissions").is_some(), "existing keys should be preserved");
+        assert!(
+            settings.get("permissions").is_some(),
+            "existing keys should be preserved"
+        );
     }
 }

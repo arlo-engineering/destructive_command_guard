@@ -356,11 +356,10 @@ pub fn detect_protocol(input: &HookInput) -> HookProtocol {
 
     // The CLAUDE_CODE env var provides a strong secondary signal when the
     // tool name is ambiguous or absent.
-    let is_claude_event = hook_event_name.is_empty()
-        || hook_event_name.eq_ignore_ascii_case("pretooluse");
-    let has_claude_env =
-        std::env::var_os("CLAUDE_CODE").is_some()
-            || std::env::var_os("CLAUDE_SESSION_ID").is_some();
+    let is_claude_event =
+        hook_event_name.is_empty() || hook_event_name.eq_ignore_ascii_case("pretooluse");
+    let has_claude_env = std::env::var_os("CLAUDE_CODE").is_some()
+        || std::env::var_os("CLAUDE_SESSION_ID").is_some();
     if has_claude_env && is_claude_event {
         return HookProtocol::ClaudeCompatible;
     }
@@ -916,12 +915,7 @@ pub fn output_warning_for_protocol(
         let mut handle = stderr.lock();
 
         let _ = writeln!(handle);
-        let _ = writeln!(
-            handle,
-            "{} {}",
-            "dcg WARNING:".yellow().bold(),
-            reason
-        );
+        let _ = writeln!(handle, "{} {}", "dcg WARNING:".yellow().bold(), reason);
 
         let rule_id = build_rule_id(pack, pattern);
         let explanation_text = format_explanation_text(explanation, rule_id.as_deref(), pack);
@@ -1503,7 +1497,7 @@ mod tests {
     #[test]
     fn test_empty_payload_defaults_to_claude_compatible() {
         // Empty/minimal payload should default to Claude Compatible (safest).
-        let json = r#"{}"#;
+        let json = r"{}";
         let input: HookInput = serde_json::from_str(json).unwrap();
         assert_eq!(detect_protocol(&input), HookProtocol::ClaudeCompatible);
     }
