@@ -29,6 +29,7 @@
 //!
 //! // For file scanning
 //! if let Some(progress) = ScanProgress::new_if_needed(100) {
+//!     let files = ["src/main.rs", "src/lib.rs"];
 //!     for file in files {
 //!         progress.tick(&file);
 //!     }

@@ -11,16 +11,20 @@
 //!   - 4: Parse/input error
 //!   - 5: IO error
 
+use std::path::PathBuf;
 use std::process::Command;
 
 /// Path to the dcg binary.
-/// Uses CARGO_TARGET_DIR if set, otherwise falls back to ./target/release/dcg
-fn dcg_binary() -> String {
-    if let Ok(target_dir) = std::env::var("CARGO_TARGET_DIR") {
-        format!("{}/release/dcg", target_dir)
-    } else {
-        "./target/release/dcg".to_string()
+fn dcg_binary() -> PathBuf {
+    if let Some(path) = std::env::var_os("CARGO_BIN_EXE_dcg") {
+        return PathBuf::from(path);
     }
+
+    let mut path = std::env::current_exe().unwrap();
+    path.pop(); // Remove test binary name
+    path.pop(); // Remove deps/
+    path.push("dcg");
+    path
 }
 
 /// Run a dcg command and return stdout, stderr, exit code.
@@ -29,7 +33,7 @@ fn run_dcg(args: &[&str]) -> (String, String, i32) {
     let output = Command::new(&binary)
         .args(args)
         .output()
-        .unwrap_or_else(|e| panic!("failed to run dcg at {}: {}", binary, e));
+        .unwrap_or_else(|e| panic!("failed to run dcg at {}: {}", binary.display(), e));
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -45,7 +49,7 @@ fn run_dcg_with_env(args: &[&str], key: &str, value: &str) -> (String, String, i
         .args(args)
         .env(key, value)
         .output()
-        .unwrap_or_else(|e| panic!("failed to run dcg at {}: {}", binary, e));
+        .unwrap_or_else(|e| panic!("failed to run dcg at {}: {}", binary.display(), e));
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
