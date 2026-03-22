@@ -149,7 +149,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // CONFIG SET maxmemory can trigger mass key eviction
         destructive_pattern!(
             "config-set-maxmemory",
-            r"(?i)\bCONFIG\s+SET\s+maxmemory(?!-)\b",
+            r"(?i)\bCONFIG\s+SET\s+maxmemory\b(?:\s|$)",
             "CONFIG SET maxmemory can trigger immediate mass key eviction if new limit is below current usage.",
             Critical,
             "Lowering maxmemory below current usage causes Redis to evict keys immediately\n\
