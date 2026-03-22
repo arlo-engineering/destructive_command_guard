@@ -28,26 +28,32 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // Branch creation is safe
-        safe_pattern!("checkout-new-branch", r"git\s+(?:\S+\s+)*checkout\s+-b\s+"),
+        safe_pattern!(
+            "checkout-new-branch",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*checkout\s+-b\s+"
+        ),
         safe_pattern!(
             "checkout-orphan",
-            r"git\s+(?:\S+\s+)*checkout\s+--orphan\s+"
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*checkout\s+--orphan\s+"
         ),
         // restore --staged only affects index, not working tree
         safe_pattern!(
             "restore-staged-long",
-            r"git\s+(?:\S+\s+)*restore\s+--staged\s+(?!.*--worktree)(?!.*-W\b)"
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*restore\s+--staged\s+(?!.*--worktree)(?!.*-W\b)"
         ),
         safe_pattern!(
             "restore-staged-short",
-            r"git\s+(?:\S+\s+)*restore\s+-S\s+(?!.*--worktree)(?!.*-W\b)"
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*restore\s+-S\s+(?!.*--worktree)(?!.*-W\b)"
         ),
         // clean dry-run just previews, doesn't delete
         safe_pattern!(
             "clean-dry-run-short",
-            r"git\s+(?:\S+\s+)*clean\s+-[a-z]*n[a-z]*"
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*clean\s+-[a-z]*n[a-z]*"
         ),
-        safe_pattern!("clean-dry-run-long", r"git\s+(?:\S+\s+)*clean\s+--dry-run"),
+        safe_pattern!(
+            "clean-dry-run-long",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*clean\s+--dry-run"
+        ),
     ]
 }
 
@@ -63,7 +69,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // checkout -- discards uncommitted changes
         destructive_pattern!(
             "checkout-discard",
-            r"git\s+(?:\S+\s+)*checkout\s+--\s+",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*checkout\s+--\s+",
             "git checkout -- discards uncommitted changes permanently. Use 'git stash' first.",
             High,
             "git checkout -- <path> discards all uncommitted changes to the specified files \
@@ -88,7 +94,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "checkout-ref-discard",
-            r"git\s+(?:\S+\s+)*checkout\s+(?!-b\b)(?!--orphan\b)[^\s]+\s+--\s+",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*checkout\s+(?!-b\b)(?!--orphan\b)[^\s]+\s+--\s+",
             "git checkout <ref> -- <path> overwrites working tree. Use 'git stash' first.",
             High,
             "git checkout <ref> -- <path> replaces your working tree files with versions from \
@@ -118,7 +124,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // restore without --staged affects working tree
         destructive_pattern!(
             "restore-worktree",
-            r"git\s+(?:\S+\s+)*restore\s+(?!--staged\b)(?!-S\b)",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*restore\s+(?!--staged\b)(?!-S\b)",
             "git restore discards uncommitted changes. Use 'git stash' or 'git diff' first.",
             High,
             "git restore <path> discards uncommitted changes in your working directory, \
@@ -148,7 +154,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "restore-worktree-explicit",
-            r"git\s+(?:\S+\s+)*restore\s+.*(?:--worktree|-W\b)",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*restore\s+.*(?:--worktree|-W\b)",
             "git restore --worktree/-W discards uncommitted changes permanently.",
             High,
             "git restore --worktree (or -W) explicitly targets your working directory, \
@@ -178,7 +184,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // reset --hard destroys uncommitted work (CRITICAL - extremely common mistake)
         destructive_pattern!(
             "reset-hard",
-            r"git\s+(?:\S+\s+)*reset\s+--hard",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*reset\s+--hard",
             "git reset --hard destroys uncommitted changes. Use 'git stash' first.",
             Critical,
             "git reset --hard discards ALL uncommitted changes in your working directory \
@@ -216,7 +222,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "reset-merge",
-            r"git\s+(?:\S+\s+)*reset\s+--merge",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*reset\s+--merge",
             "git reset --merge can lose uncommitted changes.",
             High,
             "git reset --merge resets the index and updates files in the working tree that \
@@ -244,7 +250,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // clean -f deletes untracked files (CRITICAL - permanently removes files)
         destructive_pattern!(
             "clean-force",
-            r"git\s+(?:\S+\s+)*clean\s+(?:-[a-z]*f|--force\b)",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*clean\s+(?:-[a-z]*f|--force\b)",
             "git clean -f/--force removes untracked files permanently. Review with 'git clean -n' first.",
             Critical,
             "git clean -f permanently deletes untracked files from your working directory. \
@@ -279,7 +285,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // force push can destroy remote history (CRITICAL - affects shared history)
         destructive_pattern!(
             "push-force-long",
-            r"git\s+(?:\S+\s+)*push\s+.*--force(?![-a-z])",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+.*--force(?![-a-z])",
             "Force push can destroy remote history. Use --force-with-lease if necessary.",
             Critical,
             "git push --force overwrites remote history with your local history. This can \
@@ -312,7 +318,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "push-force-short",
-            r"git\s+(?:\S+\s+)*push\s+.*-f\b",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+.*-f\b",
             "Force push (-f) can destroy remote history. Use --force-with-lease if necessary.",
             Critical,
             "git push -f (short for --force) overwrites remote history with your local history. \
@@ -345,7 +351,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // branch -D/-f force deletes or overwrites without checks (Medium: recoverable via reflog)
         destructive_pattern!(
             "branch-force-delete",
-            r"git\s+(?:\S+\s+)*branch\s+.*(?:-D\b|--force\b|-f\b)",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*branch\s+.*(?:-D\b|--force\b|-f\b)",
             "git branch -D/--force deletes branches without checks. Recoverable via 'git reflog'.",
             Medium,
             "git branch -D force-deletes a branch without checking if it has been merged. \
@@ -378,7 +384,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // stash destruction (Medium: single stash, recoverable via fsck/unreachable objects)
         destructive_pattern!(
             "stash-drop",
-            r"git\s+(?:\S+\s+)*stash\s+drop",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*stash\s+drop",
             "git stash drop deletes a single stash. Recoverable via `git fsck` (unreachable objects).",
             Medium,
             "git stash drop removes a specific stash entry from your stash list. The stashed \
@@ -415,7 +421,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // stash clear destroys ALL stashes (CRITICAL)
         destructive_pattern!(
             "stash-clear",
-            r"git\s+(?:\S+\s+)*stash\s+clear",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*stash\s+clear",
             "git stash clear permanently deletes ALL stashed changes.",
             Critical,
             "git stash clear removes ALL stash entries at once. Unlike git stash drop, \

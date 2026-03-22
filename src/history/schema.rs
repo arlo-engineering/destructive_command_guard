@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 /// Extract a `String` from a `SqliteValue`.
 fn sv_to_string(v: &SqliteValue) -> String {
     match v {
-        SqliteValue::Text(s) => s.clone(),
+        SqliteValue::Text(s) => s.to_string(),
         SqliteValue::Integer(i) => i.to_string(),
         SqliteValue::Float(f) => f.to_string(),
         SqliteValue::Null => String::new(),
@@ -78,17 +78,21 @@ fn sv_to_i32(v: &SqliteValue) -> i32 {
 /// Extract an `Option<String>` from a `SqliteValue`.
 fn sv_to_opt_string(v: &SqliteValue) -> Option<String> {
     match v {
-        SqliteValue::Text(s) => Some(s.clone()),
+        SqliteValue::Text(s) => Some(s.to_string()),
         SqliteValue::Null => None,
         SqliteValue::Integer(i) => Some(i.to_string()),
         _ => None,
     }
 }
 
+fn text_sv(value: impl Into<String>) -> SqliteValue {
+    SqliteValue::from(value.into())
+}
+
 /// Convert an `Option<String>` to a `SqliteValue`.
 fn opt_string_to_sv(v: Option<&String>) -> SqliteValue {
     match v {
-        Some(s) => SqliteValue::Text(s.clone()),
+        Some(s) => text_sv(s.clone()),
         None => SqliteValue::Null,
     }
 }
@@ -520,10 +524,7 @@ impl<'a> HistoryAnalyzer<'a> {
              GROUP BY command
              HAVING COUNT(*) >= ?2
              ORDER BY block_count DESC, command ASC",
-            &[
-                SqliteValue::Text(since_ts),
-                SqliteValue::Integer(min_count_i64),
-            ],
+            &[text_sv(since_ts), SqliteValue::Integer(min_count_i64)],
         ))?;
 
         let mut blocks = Vec::new();
@@ -854,14 +855,14 @@ impl HistoryDb {
 
         let row = self.conn.query_row_with_params(
             "SELECT COUNT(*) FROM commands WHERE timestamp < ?1",
-            &[SqliteValue::Text(cutoff_ts.clone())],
+            &[text_sv(cutoff_ts.clone())],
         )?;
         let count = sv_to_i64(&row.values()[0]);
 
         if !dry_run {
             self.conn.execute_with_params(
                 "DELETE FROM commands WHERE timestamp < ?1",
-                &[SqliteValue::Text(cutoff_ts)],
+                &[text_sv(cutoff_ts)],
             )?;
             // Rebuild FTS index after deletion since fsqlite FTS5 doesn't support
             // individual row deletion via 'delete' control command triggers
@@ -934,10 +935,7 @@ impl HistoryDb {
     ) -> Result<StatsSnapshot, HistoryError> {
         let start_ts = format_timestamp(start);
         let end_ts = format_timestamp(end);
-        let ts_params = &[
-            SqliteValue::Text(start_ts.clone()),
-            SqliteValue::Text(end_ts.clone()),
-        ];
+        let ts_params = &[text_sv(start_ts.clone()), text_sv(end_ts.clone())];
 
         let total_row = self.conn.query_row_with_params(
             "SELECT COUNT(*) FROM commands WHERE timestamp >= ?1 AND timestamp < ?2",
@@ -1086,12 +1084,12 @@ impl HistoryDb {
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16
             )",
             &[
-                SqliteValue::Text(timestamp),
-                SqliteValue::Text(entry.agent_type.clone()),
-                SqliteValue::Text(entry.working_dir.clone()),
-                SqliteValue::Text(entry.command.clone()),
-                SqliteValue::Text(command_hash),
-                SqliteValue::Text(entry.outcome.as_str().to_string()),
+                text_sv(timestamp),
+                text_sv(entry.agent_type.clone()),
+                text_sv(entry.working_dir.clone()),
+                text_sv(entry.command.clone()),
+                text_sv(command_hash),
+                text_sv(entry.outcome.as_str()),
                 opt_string_to_sv(entry.pack_id.as_ref()),
                 opt_string_to_sv(entry.pattern_name.as_ref()),
                 opt_string_to_sv(rule_id.as_ref()),
@@ -1297,7 +1295,7 @@ impl HistoryDb {
             "INSERT OR REPLACE INTO schema_version (version, description, last_prune_at) VALUES (?1, ?2, NULL)",
             &[
                 SqliteValue::Integer(i64::from(CURRENT_SCHEMA_VERSION)),
-                SqliteValue::Text("Initial schema".to_string()),
+                text_sv("Initial schema"),
             ],
         )?;
 
@@ -1353,7 +1351,7 @@ impl HistoryDb {
             "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(2),
-                SqliteValue::Text("Add schema version descriptions".to_string()),
+                text_sv("Add schema version descriptions"),
             ],
         )?;
         Ok(())
@@ -1386,7 +1384,7 @@ impl HistoryDb {
             "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(3),
-                SqliteValue::Text("Add stats cache and auto-prune tracking".to_string()),
+                text_sv("Add stats cache and auto-prune tracking"),
             ],
         )?;
 
@@ -1426,7 +1424,7 @@ impl HistoryDb {
             "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(4),
-                SqliteValue::Text("Add rule_id column and index".to_string()),
+                text_sv("Add rule_id column and index"),
             ],
         )?;
 
@@ -1467,9 +1465,7 @@ impl HistoryDb {
             "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(5),
-                SqliteValue::Text(
-                    "Add suggestion_audit table for tracking suggestion actions".to_string(),
-                ),
+                text_sv("Add suggestion_audit table for tracking suggestion actions"),
             ],
         )?;
 
@@ -1501,10 +1497,7 @@ impl HistoryDb {
             "INSERT OR REPLACE INTO schema_version (version, description) VALUES (?1, ?2)",
             &[
                 SqliteValue::Integer(6),
-                SqliteValue::Text(
-                    "Add interactive_allowlist_audit table for interactive allowlist actions"
-                        .to_string(),
-                ),
+                text_sv("Add interactive_allowlist_audit table for interactive allowlist actions"),
             ],
         )?;
 
@@ -1550,12 +1543,12 @@ impl HistoryDb {
                         ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16
                     )",
                     &[
-                        SqliteValue::Text(timestamp),
-                        SqliteValue::Text(entry.agent_type.clone()),
-                        SqliteValue::Text(entry.working_dir.clone()),
-                        SqliteValue::Text(entry.command.clone()),
-                        SqliteValue::Text(command_hash),
-                        SqliteValue::Text(entry.outcome.as_str().to_string()),
+                        text_sv(timestamp),
+                        text_sv(entry.agent_type.clone()),
+                        text_sv(entry.working_dir.clone()),
+                        text_sv(entry.command.clone()),
+                        text_sv(command_hash),
+                        text_sv(entry.outcome.as_str()),
                         opt_string_to_sv(entry.pack_id.as_ref()),
                         opt_string_to_sv(entry.pattern_name.as_ref()),
                         SqliteValue::Integer(eval_duration_us),
@@ -1659,7 +1652,7 @@ impl HistoryDb {
         let now = format_timestamp(Utc::now());
         self.conn.execute_with_params(
             "UPDATE schema_version SET last_prune_at = ?1 WHERE version = (SELECT MAX(version) FROM schema_version)",
-            &[SqliteValue::Text(now)],
+            &[text_sv(now)],
         )?;
         Ok(())
     }
@@ -1682,7 +1675,7 @@ impl HistoryDb {
     ) -> Result<Option<i64>, HistoryError> {
         let result = self.conn.query_row_with_params(
             "SELECT value, updated_at FROM stats_cache WHERE key = ?1",
-            &[SqliteValue::Text(key.to_string())],
+            &[text_sv(key)],
         );
 
         match result {
@@ -1713,9 +1706,9 @@ impl HistoryDb {
             "INSERT INTO stats_cache (key, value, updated_at) VALUES (?1, ?2, ?3)
              ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = ?3",
             &[
-                SqliteValue::Text(key.to_string()),
+                text_sv(key),
                 SqliteValue::Integer(value),
-                SqliteValue::Text(now),
+                text_sv(now),
             ],
         )?;
         Ok(())
@@ -1733,7 +1726,7 @@ impl HistoryDb {
         self.conn.execute_with_params(
             "INSERT INTO stats_cache (key, value, updated_at) VALUES (?1, 1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = value + 1, updated_at = ?2",
-            &[SqliteValue::Text(key.to_string()), SqliteValue::Text(now)],
+            &[text_sv(key), text_sv(now)],
         )?;
         Ok(())
     }
@@ -1940,7 +1933,7 @@ impl HistoryDb {
             // VACUUM INTO creates a clean copy
             self.conn.execute_with_params(
                 "VACUUM INTO ?1",
-                &[SqliteValue::Text(temp_path.to_string_lossy().to_string())],
+                &[text_sv(temp_path.to_string_lossy().to_string())],
             )?;
 
             // Compress the temp file to the final path
@@ -1957,7 +1950,7 @@ impl HistoryDb {
             // Direct VACUUM INTO
             self.conn.execute_with_params(
                 "VACUUM INTO ?1",
-                &[SqliteValue::Text(output_path.to_string_lossy().to_string())],
+                &[text_sv(output_path.to_string_lossy().to_string())],
             )?;
         }
 
@@ -2015,19 +2008,19 @@ impl HistoryDb {
 
         if let Some(outcome) = &options.outcome_filter {
             write!(sql, " AND outcome = ?{param_idx}").unwrap();
-            params.push(SqliteValue::Text(outcome.as_str().to_string()));
+            params.push(text_sv(outcome.as_str()));
             param_idx += 1;
         }
 
         if let Some(since) = &options.since {
             write!(sql, " AND timestamp >= ?{param_idx}").unwrap();
-            params.push(SqliteValue::Text(format_timestamp(*since)));
+            params.push(text_sv(format_timestamp(*since)));
             param_idx += 1;
         }
 
         if let Some(until) = &options.until {
             write!(sql, " AND timestamp < ?{param_idx}").unwrap();
-            params.push(SqliteValue::Text(format_timestamp(*until)));
+            params.push(text_sv(format_timestamp(*until)));
             param_idx += 1;
         }
 
@@ -2213,10 +2206,7 @@ impl HistoryDb {
         // Get total commands for context
         let total_row = self.conn.query_row_with_params(
             "SELECT COUNT(*) FROM commands WHERE timestamp >= ?1 AND timestamp < ?2",
-            &[
-                SqliteValue::Text(since_ts.clone()),
-                SqliteValue::Text(end_ts.clone()),
-            ],
+            &[text_sv(since_ts.clone()), text_sv(end_ts.clone())],
         )?;
         let total_commands = u64::try_from(sv_to_i64(&total_row.values()[0])).unwrap_or(0);
 
@@ -2265,8 +2255,8 @@ impl HistoryDb {
     ) -> Result<Vec<PatternEffectiveness>, HistoryError> {
         let mut patterns = Vec::new();
         let ts_params = &[
-            SqliteValue::Text(since_ts.to_string()),
-            SqliteValue::Text(end_ts.to_string()),
+            text_sv(since_ts.to_string()),
+            text_sv(end_ts.to_string()),
         ];
 
         // Get deny counts per pattern
@@ -2389,8 +2379,8 @@ impl HistoryDb {
              WHERE timestamp >= ?1 AND timestamp < ?2
              AND pack_id IS NOT NULL",
             &[
-                SqliteValue::Text(since_ts.to_string()),
-                SqliteValue::Text(end_ts.to_string()),
+                text_sv(since_ts.to_string()),
+                text_sv(end_ts.to_string()),
             ],
         ))?;
         let mut packs = Vec::new();
@@ -2428,8 +2418,8 @@ impl HistoryDb {
              ORDER BY timestamp DESC
              LIMIT 1000",
             &[
-                SqliteValue::Text(since_ts.to_string()),
-                SqliteValue::Text(end_ts.to_string()),
+                text_sv(since_ts.to_string()),
+                text_sv(end_ts.to_string()),
             ],
         ))?;
 
@@ -2595,14 +2585,14 @@ impl HistoryDb {
              ORDER BY total_hits DESC
              LIMIT ?2",
             &[
-                SqliteValue::Text(since_ts.clone()),
+                text_sv(since_ts.clone()),
                 SqliteValue::Integer(limit_i64),
             ],
         ))?;
         // Bypass counts per rule
         let bypass_rows = self.conn.query(&inline_params(
             "SELECT rule_id, COUNT(*) FROM commands WHERE rule_id IS NOT NULL AND outcome = 'bypass' AND timestamp >= ?1 GROUP BY rule_id",
-            &[SqliteValue::Text(since_ts)],
+            &[text_sv(since_ts)],
         ))?;
         let bypass_map: HashMap<String, i64> = bypass_rows
             .iter()
@@ -2669,7 +2659,7 @@ impl HistoryDb {
     ) -> Result<Option<RuleMetrics>, HistoryError> {
         // fsqlite does not support SUM(CASE WHEN ...) or scalar subqueries
         // mixed with aggregates. Use two separate queries.
-        let params = &[SqliteValue::Text(rule_id.to_string())];
+        let params = &[text_sv(rule_id.to_string())];
         let result = self.conn.query_row(&inline_params(
             r"SELECT
                 COUNT(*) as total_hits,
@@ -2855,9 +2845,9 @@ impl HistoryDb {
         let recent_count: i64 = self.conn.query_row_with_params(
             "SELECT COUNT(*) FROM commands WHERE rule_id = ?1 AND timestamp >= ?2 AND timestamp < ?3",
             &[
-                SqliteValue::Text(rule_id.to_string()),
-                SqliteValue::Text(recent_ts.clone()),
-                SqliteValue::Text(now_ts),
+                text_sv(rule_id.to_string()),
+                text_sv(recent_ts.clone()),
+                text_sv(now_ts),
             ],
         ).map(|row| sv_to_i64(&row.values()[0])).unwrap_or(0);
 
@@ -2865,9 +2855,9 @@ impl HistoryDb {
         let previous_count: i64 = self.conn.query_row_with_params(
             "SELECT COUNT(*) FROM commands WHERE rule_id = ?1 AND timestamp >= ?2 AND timestamp < ?3",
             &[
-                SqliteValue::Text(rule_id.to_string()),
-                SqliteValue::Text(previous_ts),
-                SqliteValue::Text(recent_ts),
+                text_sv(rule_id.to_string()),
+                text_sv(previous_ts),
+                text_sv(recent_ts),
             ],
         ).map(|row| sv_to_i64(&row.values()[0])).unwrap_or(0);
 
@@ -2921,17 +2911,17 @@ impl HistoryDb {
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14
             )",
             &[
-                SqliteValue::Text(timestamp),
-                SqliteValue::Text(entry.action.as_str().to_string()),
-                SqliteValue::Text(entry.pattern.clone()),
+                text_sv(timestamp),
+                text_sv(entry.action.as_str()),
+                text_sv(entry.pattern.clone()),
                 opt_string_to_sv(entry.final_pattern.as_ref()),
-                SqliteValue::Text(entry.risk_level.clone()),
+                text_sv(entry.risk_level.clone()),
                 SqliteValue::Float(f64::from(entry.risk_score)),
-                SqliteValue::Text(entry.confidence_tier.clone()),
+                text_sv(entry.confidence_tier.clone()),
                 SqliteValue::Integer(i64::from(entry.confidence_points)),
                 SqliteValue::Integer(cluster_frequency),
                 SqliteValue::Integer(unique_variants),
-                SqliteValue::Text(entry.sample_commands.clone()),
+                text_sv(entry.sample_commands.clone()),
                 opt_string_to_sv(entry.rule_id.as_ref()),
                 opt_string_to_sv(entry.session_id.as_ref()),
                 opt_string_to_sv(entry.working_dir.as_ref()),
@@ -2985,7 +2975,7 @@ impl HistoryDb {
 
         if let Some(action) = action_filter {
             write!(sql, " WHERE action = ?{param_idx}").unwrap();
-            params.push(SqliteValue::Text(action.as_str().to_string()));
+            params.push(text_sv(action.as_str()));
             param_idx += 1;
         }
 
@@ -3054,12 +3044,12 @@ impl HistoryDb {
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
             )",
             &[
-                SqliteValue::Text(timestamp),
-                SqliteValue::Text(entry.command.clone()),
-                SqliteValue::Text(entry.pattern_added.clone()),
-                SqliteValue::Text(entry.option_type.as_str().to_string()),
+                text_sv(timestamp),
+                text_sv(entry.command.clone()),
+                text_sv(entry.pattern_added.clone()),
+                text_sv(entry.option_type.as_str()),
                 opt_string_to_sv(entry.option_detail.as_ref()),
-                SqliteValue::Text(entry.config_file.clone()),
+                text_sv(entry.config_file.clone()),
                 opt_string_to_sv(entry.cwd.as_ref()),
                 opt_string_to_sv(entry.user.as_ref()),
             ],
@@ -3111,7 +3101,7 @@ impl HistoryDb {
 
         if let Some(option_type) = option_type_filter {
             write!(sql, " WHERE option_type = ?{param_idx}").unwrap();
-            params.push(SqliteValue::Text(option_type.as_str().to_string()));
+            params.push(text_sv(option_type.as_str()));
             param_idx += 1;
         }
 

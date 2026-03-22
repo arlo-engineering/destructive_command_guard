@@ -1487,13 +1487,23 @@ fn extract_heredoc_target_command(command: &str, heredoc_start: usize) -> Option
         return None;
     }
 
-    // Parse tokens backwards to find the command
-    // This handles quoted strings, flags, and file arguments properly
+    // Parse tokens backwards, then walk them in original order so we identify
+    // the command that owns the heredoc rather than the last argument before
+    // the operator.
     let tokens = tokenize_backwards(trimmed);
 
-    for token in tokens {
+    for token in tokens.iter().rev() {
+        if is_shell_env_assignment(token) {
+            continue;
+        }
+
         // Skip flags
         if token.starts_with('-') {
+            continue;
+        }
+
+        // Skip common shell wrappers until we reach the actual target command.
+        if SHELL_WRAPPER_COMMANDS.contains(&token.as_str()) {
             continue;
         }
 
@@ -1506,7 +1516,7 @@ fn extract_heredoc_target_command(command: &str, heredoc_start: usize) -> Option
 
         // Skip if this looks like a file path argument
         if token.contains('/') {
-            let basename = token.rsplit('/').next().unwrap_or(&token);
+            let basename = token.rsplit('/').next().unwrap_or(token);
 
             // Check if this looks like a command path (/bin/cat, /usr/bin/bash)
             // vs a file argument (/tmp/file, /path/to/data)
@@ -1543,10 +1553,26 @@ fn extract_heredoc_target_command(command: &str, heredoc_start: usize) -> Option
             continue;
         }
 
-        return Some(token);
+        return Some(token.clone());
     }
 
     None
+}
+
+fn is_shell_env_assignment(token: &str) -> bool {
+    let Some((name, _value)) = token.split_once('=') else {
+        return false;
+    };
+
+    !name.is_empty()
+        && name
+            .bytes()
+            .enumerate()
+            .all(|(idx, byte)| match byte {
+                b'a'..=b'z' | b'A'..=b'Z' | b'_' => true,
+                b'0'..=b'9' => idx > 0,
+                _ => false,
+            })
 }
 
 /// Tokenize a command string backwards, respecting quotes.
@@ -1675,6 +1701,8 @@ const NON_EXECUTING_HEREDOC_COMMANDS: &[&str] = &[
     // Variable assignment (read into variable, don't execute)
     "read",
 ];
+
+const SHELL_WRAPPER_COMMANDS: &[&str] = &["sudo", "env", "command", "builtin", "nohup"];
 
 /// Check if a command executes its heredoc/stdin content as code.
 ///
@@ -3733,5 +3761,39 @@ fi"#;
         let content = "print('hello')"; // ambiguous content
         let (lang, _) = ScriptLanguage::detect(cmd, content);
         assert_eq!(lang, ScriptLanguage::Python);
+    }
+
+    #[test]
+    fn extract_heredoc_target_command_prefers_command_over_arguments() {
+        let cat_cmd = "cat bash <<EOF\nrm -rf /\nEOF";
+        let cat_start = cat_cmd.find("<<").expect("cat heredoc");
+        assert_eq!(
+            extract_heredoc_target_command(cat_cmd, cat_start).as_deref(),
+            Some("cat")
+        );
+
+        let grep_cmd = "grep pattern . <<EOF\nrm -rf /\nEOF";
+        let grep_start = grep_cmd.find("<<").expect("grep heredoc");
+        assert_eq!(
+            extract_heredoc_target_command(grep_cmd, grep_start).as_deref(),
+            Some("grep")
+        );
+    }
+
+    #[test]
+    fn extract_heredoc_target_command_skips_assignments_and_wrappers() {
+        let env_cmd = "FOO=1 env -i /bin/cat <<EOF\npayload\nEOF";
+        let env_start = env_cmd.find("<<").expect("env heredoc");
+        assert_eq!(
+            extract_heredoc_target_command(env_cmd, env_start).as_deref(),
+            Some("cat")
+        );
+
+        let sudo_cmd = "sudo bash <<EOF\necho hi\nEOF";
+        let sudo_start = sudo_cmd.find("<<").expect("sudo heredoc");
+        assert_eq!(
+            extract_heredoc_target_command(sudo_cmd, sudo_start).as_deref(),
+            Some("bash")
+        );
     }
 }
