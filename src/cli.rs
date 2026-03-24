@@ -12752,6 +12752,161 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parse_init_auto() {
+        let cli = Cli::parse_from(["dcg", "init", "--auto"]);
+        if let Some(Command::Init { auto, dry_run, .. }) = cli.command {
+            assert!(auto);
+            assert!(!dry_run);
+        } else {
+            unreachable!("Expected Init command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_init_dry_run() {
+        let cli = Cli::parse_from(["dcg", "init", "--dry-run"]);
+        if let Some(Command::Init { dry_run, auto, .. }) = cli.command {
+            assert!(dry_run);
+            assert!(!auto);
+        } else {
+            unreachable!("Expected Init command");
+        }
+    }
+
+    #[test]
+    fn test_cli_parse_init_auto_with_project_dir() {
+        let cli = Cli::parse_from(["dcg", "init", "--auto", "--project-dir", "/tmp/myproject"]);
+        if let Some(Command::Init {
+            auto,
+            project_dir,
+            ..
+        }) = cli.command
+        {
+            assert!(auto);
+            assert_eq!(project_dir.as_deref(), Some("/tmp/myproject"));
+        } else {
+            unreachable!("Expected Init command");
+        }
+    }
+
+    #[test]
+    fn test_detect_project_packs_empty_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let detections = detect_project_packs(tmp.path());
+        assert!(detections.is_empty(), "Empty dir should produce no detections");
+    }
+
+    #[test]
+    fn test_detect_project_packs_dockerfile() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("Dockerfile"), "FROM alpine").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"containers.docker"), "Should detect Docker from Dockerfile");
+    }
+
+    #[test]
+    fn test_detect_project_packs_compose() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("docker-compose.yml"), "version: '3'").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"containers.compose"), "Should detect compose");
+        assert!(pack_ids.contains(&"containers.docker"), "Should also detect docker from compose");
+    }
+
+    #[test]
+    fn test_detect_project_packs_terraform() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("main.tf"), "resource {}").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"infrastructure.terraform"), "Should detect terraform from main.tf");
+    }
+
+    #[test]
+    fn test_detect_project_packs_github_actions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workflows = tmp.path().join(".github").join("workflows");
+        std::fs::create_dir_all(&workflows).unwrap();
+        std::fs::write(workflows.join("ci.yml"), "on: push").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"cicd.github_actions"), "Should detect GitHub Actions");
+    }
+
+    #[test]
+    fn test_detect_project_packs_kubernetes() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("k8s")).unwrap();
+        std::fs::write(tmp.path().join("Chart.yaml"), "apiVersion: v2").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"kubernetes.kubectl"), "Should detect kubectl from k8s/");
+        assert!(pack_ids.contains(&"kubernetes.helm"), "Should detect helm from Chart.yaml");
+    }
+
+    #[test]
+    fn test_detect_project_packs_db_from_package_json() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r#"{"dependencies":{"pg":"^8.0.0","mongoose":"^7.0.0"}}"#,
+        )
+        .unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"database.postgresql"), "Should detect postgres from pg dep");
+        assert!(pack_ids.contains(&"database.mongodb"), "Should detect mongo from mongoose dep");
+        assert!(pack_ids.contains(&"package_managers"), "Should detect package_managers from package.json");
+    }
+
+    #[test]
+    fn test_detect_project_packs_cloud_aws() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("serverless.yml"), "service: myapp").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"cloud.aws"), "Should detect AWS from serverless.yml");
+    }
+
+    #[test]
+    fn test_detect_project_packs_cloud_gcp() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("cloudbuild.yaml"), "steps:").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
+        assert!(pack_ids.contains(&"cloud.gcp"), "Should detect GCP from cloudbuild.yaml");
+    }
+
+    #[test]
+    fn test_detect_project_packs_no_duplicates() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Multiple docker-related files should only yield one containers.docker entry
+        std::fs::write(tmp.path().join("Dockerfile"), "FROM alpine").unwrap();
+        std::fs::write(tmp.path().join("docker-compose.yml"), "version: '3'").unwrap();
+        let detections = detect_project_packs(tmp.path());
+        let docker_count = detections
+            .iter()
+            .filter(|d| d.pack_id == "containers.docker")
+            .count();
+        assert_eq!(docker_count, 1, "Should deduplicate containers.docker");
+    }
+
+    #[test]
+    fn test_generate_config_with_packs() {
+        let packs = vec![
+            "containers.docker".to_string(),
+            "database.postgresql".to_string(),
+        ];
+        let config = generate_config_with_packs(&packs);
+        assert!(config.contains("containers.docker"));
+        assert!(config.contains("database.postgresql"));
+        assert!(config.contains("[packs]"));
+        assert!(config.contains("dcg init --auto"));
+    }
+
+    #[test]
     fn test_cli_parse_update() {
         let cli = Cli::parse_from(["dcg", "update", "--version", "v0.2.0"]);
         if let Some(Command::Update(update)) = cli.command {
