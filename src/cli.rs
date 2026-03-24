@@ -4252,6 +4252,40 @@ fn detect_project_packs(dir: &std::path::Path) -> Vec<PackDetection> {
     detections
 }
 
+/// Check if `keyword` appears as a complete word in `content`.
+///
+/// A "word" is bounded by non-alphanumeric characters (or start/end of string).
+/// This prevents false positives like "pg" matching "upgrading" or "package".
+fn contains_word(content: &str, keyword: &str) -> bool {
+    let kw_bytes = keyword.as_bytes();
+    let kw_len = kw_bytes.len();
+    let content_bytes = content.as_bytes();
+    let content_len = content_bytes.len();
+
+    if kw_len == 0 || kw_len > content_len {
+        return false;
+    }
+
+    let mut start = 0;
+    while let Some(pos) = content[start..].find(keyword) {
+        let abs_pos = start + pos;
+        let before_ok =
+            abs_pos == 0 || !content_bytes[abs_pos - 1].is_ascii_alphanumeric();
+        let after_pos = abs_pos + kw_len;
+        let after_ok =
+            after_pos >= content_len || !content_bytes[after_pos].is_ascii_alphanumeric();
+
+        if before_ok && after_ok {
+            return true;
+        }
+
+        // Advance past this match to avoid infinite loop
+        start = abs_pos + 1;
+    }
+
+    false
+}
+
 /// Scan dependency files for database driver references and add appropriate pack detections.
 fn detect_database_packs_from_deps(
     dir: &std::path::Path,
@@ -4295,7 +4329,7 @@ fn detect_database_packs_from_deps(
 
         for &(pack_id, keywords) in db_patterns {
             for &kw in keywords {
-                if content_lower.contains(kw) {
+                if contains_word(&content_lower, kw) {
                     if seen_packs.insert(pack_id.to_string()) {
                         detections.push(PackDetection {
                             pack_id: pack_id.to_string(),
@@ -4417,7 +4451,7 @@ fn generate_config_with_packs(packs: &[String]) -> String {
             if i < packs.len() - 1 {
                 lines.push(format!("    \"{pack}\","));
             } else {
-                lines.push(format!("    \"{pack}\","));
+                lines.push(format!("    \"{pack}\""));
             }
         }
         lines.push("]".to_string());
