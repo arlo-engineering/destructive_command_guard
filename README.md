@@ -13,7 +13,7 @@
 
 A high-performance hook for AI coding agents that blocks destructive commands before they execute, protecting your work from accidental deletion.
 
-**Supported:** [Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [OpenCode](https://opencode.ai) (via [community plugin](https://github.com/jms830/opencode-dcg-plugin)), [Aider](https://aider.chat/) (limited—git hooks only), [Continue](https://continue.dev) (detection only), [Codex CLI](https://github.com/openai/codex) (detection only)
+**Supported:** [Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [OpenCode](https://opencode.ai) (via [community plugin](https://github.com/aspiers/ai-config/blob/main/.config/opencode/plugins/dcg-guard.js)), [Aider](https://aider.chat/) (limited—git hooks only), [Continue](https://continue.dev) (detection only), [Codex CLI](https://github.com/openai/codex) (detection only)
 
 <div align="center">
 <h3>Quick Install</h3>
@@ -722,6 +722,8 @@ The install script:
 > **Note on Codex CLI:** OpenAI's Codex CLI only supports post-execution hooks (`notify`, `agent-turn-complete`), not pre-execution command interception. The installer detects Codex CLI but cannot auto-configure protection. For dcg protection with Codex CLI, install dcg as a [git pre-commit hook](docs/scan-precommit-guide.md).
 
 > **Note on GitHub Copilot CLI:** Copilot hooks are repository-local (`.github/hooks/*.json`) and loaded from the current working directory. Run the installer from each repository where you want protection so it can create/merge `.github/hooks/dcg.json`.
+
+> **Note on OpenCode:** The installer does not auto-configure OpenCode. OpenCode uses Bun-based plugins with a `"tool.execute.before"` hook key. Your plugin must send dcg the correct JSON format on stdin: `{"tool_name":"Bash","tool_input":{"command":"..."}}`. A working community plugin is available at [aspiers/ai-config/dcg-guard.js](https://github.com/aspiers/ai-config/blob/main/.config/opencode/plugins/dcg-guard.js). **Note:** An older plugin ([jms830/opencode-dcg-plugin](https://github.com/jms830/opencode-dcg-plugin)) sends the wrong JSON field names and silently allows all commands—do not use it.
 
 > **Recommended:** After installing, run `dcg setup` (or re-run the installer) to add a [shell startup check](#hook-silently-removed-recommended-add-shell-startup-check) that warns you if the dcg hook is ever silently removed from `~/.claude/settings.json`.
 
