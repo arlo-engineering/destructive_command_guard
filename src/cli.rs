@@ -4145,7 +4145,12 @@ fn detect_project_packs(dir: &std::path::Path) -> Vec<PackDetection> {
 
     // --- Container detection ---
     if dir.join("Dockerfile").exists() || dir.join("dockerfile").exists() {
-        add_detection("containers.docker", "Dockerfile", &mut seen_packs, &mut detections);
+        add_detection(
+            "containers.docker",
+            "Dockerfile",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     // Check for Dockerfile.* variants
     if let Ok(entries) = std::fs::read_dir(dir) {
@@ -4153,20 +4158,50 @@ fn detect_project_packs(dir: &std::path::Path) -> Vec<PackDetection> {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             if name.starts_with("Dockerfile.") || name.starts_with("dockerfile.") {
-                add_detection("containers.docker", &format!("{name}"), &mut seen_packs, &mut detections);
+                add_detection(
+                    "containers.docker",
+                    &format!("{name}"),
+                    &mut seen_packs,
+                    &mut detections,
+                );
             }
         }
     }
     if dir.join("docker-compose.yml").exists() || dir.join("docker-compose.yaml").exists() {
-        add_detection("containers.compose", "docker-compose.yml", &mut seen_packs, &mut detections);
-        add_detection("containers.docker", "docker-compose.yml (implies Docker)", &mut seen_packs, &mut detections);
+        add_detection(
+            "containers.compose",
+            "docker-compose.yml",
+            &mut seen_packs,
+            &mut detections,
+        );
+        add_detection(
+            "containers.docker",
+            "docker-compose.yml (implies Docker)",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("compose.yml").exists() || dir.join("compose.yaml").exists() {
-        add_detection("containers.compose", "compose.yml", &mut seen_packs, &mut detections);
-        add_detection("containers.docker", "compose.yml (implies Docker)", &mut seen_packs, &mut detections);
+        add_detection(
+            "containers.compose",
+            "compose.yml",
+            &mut seen_packs,
+            &mut detections,
+        );
+        add_detection(
+            "containers.docker",
+            "compose.yml (implies Docker)",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("Containerfile").exists() {
-        add_detection("containers.podman", "Containerfile", &mut seen_packs, &mut detections);
+        add_detection(
+            "containers.podman",
+            "Containerfile",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
 
     // --- Infrastructure as Code ---
@@ -4175,7 +4210,12 @@ fn detect_project_packs(dir: &std::path::Path) -> Vec<PackDetection> {
         || dir.join("main.tf").exists()
         || dir.join("terraform.tfvars").exists()
     {
-        add_detection("infrastructure.terraform", "Terraform files (*.tf)", &mut seen_packs, &mut detections);
+        add_detection(
+            "infrastructure.terraform",
+            "Terraform files (*.tf)",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     // Check for any .tf files in the root
     if let Ok(entries) = std::fs::read_dir(dir) {
@@ -4183,47 +4223,107 @@ fn detect_project_packs(dir: &std::path::Path) -> Vec<PackDetection> {
             let name = entry.file_name();
             let name = name.to_string_lossy();
             if name.ends_with(".tf") {
-                add_detection("infrastructure.terraform", &format!("{name}"), &mut seen_packs, &mut detections);
+                add_detection(
+                    "infrastructure.terraform",
+                    &format!("{name}"),
+                    &mut seen_packs,
+                    &mut detections,
+                );
                 break;
             }
         }
     }
     if dir.join("Pulumi.yaml").exists() || dir.join("Pulumi.yml").exists() {
-        add_detection("infrastructure.pulumi", "Pulumi.yaml", &mut seen_packs, &mut detections);
+        add_detection(
+            "infrastructure.pulumi",
+            "Pulumi.yaml",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("ansible.cfg").exists()
         || dir.join("playbook.yml").exists()
         || dir.join("playbooks").is_dir()
         || dir.join("roles").is_dir()
     {
-        add_detection("infrastructure.ansible", "Ansible config/playbooks", &mut seen_packs, &mut detections);
+        add_detection(
+            "infrastructure.ansible",
+            "Ansible config/playbooks",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
 
     // --- CI/CD ---
     if dir.join(".github").join("workflows").is_dir() {
-        add_detection("cicd.github_actions", ".github/workflows/", &mut seen_packs, &mut detections);
+        add_detection(
+            "cicd.github_actions",
+            ".github/workflows/",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join(".gitlab-ci.yml").exists() {
-        add_detection("cicd.gitlab_ci", ".gitlab-ci.yml", &mut seen_packs, &mut detections);
+        add_detection(
+            "cicd.gitlab_ci",
+            ".gitlab-ci.yml",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("Jenkinsfile").exists() {
-        add_detection("cicd.jenkins", "Jenkinsfile", &mut seen_packs, &mut detections);
+        add_detection(
+            "cicd.jenkins",
+            "Jenkinsfile",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join(".circleci").is_dir() {
-        add_detection("cicd.circleci", ".circleci/", &mut seen_packs, &mut detections);
+        add_detection(
+            "cicd.circleci",
+            ".circleci/",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
 
     // --- Kubernetes ---
     if dir.join("k8s").is_dir() || dir.join("kubernetes").is_dir() {
-        add_detection("kubernetes.kubectl", "k8s/ or kubernetes/ directory", &mut seen_packs, &mut detections);
+        add_detection(
+            "kubernetes.kubectl",
+            "k8s/ or kubernetes/ directory",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("Chart.yaml").exists() || dir.join("charts").is_dir() {
-        add_detection("kubernetes.helm", "Chart.yaml or charts/", &mut seen_packs, &mut detections);
-        add_detection("kubernetes.kubectl", "Helm chart (implies kubectl)", &mut seen_packs, &mut detections);
+        add_detection(
+            "kubernetes.helm",
+            "Chart.yaml or charts/",
+            &mut seen_packs,
+            &mut detections,
+        );
+        add_detection(
+            "kubernetes.kubectl",
+            "Helm chart (implies kubectl)",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("kustomization.yaml").exists() || dir.join("kustomization.yml").exists() {
-        add_detection("kubernetes.kustomize", "kustomization.yaml", &mut seen_packs, &mut detections);
-        add_detection("kubernetes.kubectl", "Kustomize (implies kubectl)", &mut seen_packs, &mut detections);
+        add_detection(
+            "kubernetes.kustomize",
+            "kustomization.yaml",
+            &mut seen_packs,
+            &mut detections,
+        );
+        add_detection(
+            "kubernetes.kubectl",
+            "Kustomize (implies kubectl)",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
 
     // --- Cloud providers ---
@@ -4233,16 +4333,31 @@ fn detect_project_packs(dir: &std::path::Path) -> Vec<PackDetection> {
         || dir.join("sam-template.yaml").exists()
         || (dir.join("template.yaml").exists() && dir.join("samconfig.toml").exists())
     {
-        add_detection("cloud.aws", ".aws/ or serverless config", &mut seen_packs, &mut detections);
+        add_detection(
+            "cloud.aws",
+            ".aws/ or serverless config",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("cloudbuild.yaml").exists()
         || dir.join("cloudbuild.yml").exists()
         || (dir.join("app.yaml").exists() && dir.join(".gcloudignore").exists())
     {
-        add_detection("cloud.gcp", "Google Cloud config", &mut seen_packs, &mut detections);
+        add_detection(
+            "cloud.gcp",
+            "Google Cloud config",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join("azure-pipelines.yml").exists() || dir.join(".azure").is_dir() {
-        add_detection("cloud.azure", "Azure config", &mut seen_packs, &mut detections);
+        add_detection(
+            "cloud.azure",
+            "Azure config",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
 
     // --- Database detection from dependency files ---
@@ -4257,15 +4372,30 @@ fn detect_project_packs(dir: &std::path::Path) -> Vec<PackDetection> {
         || dir.join("go.mod").exists()
         || dir.join("composer.json").exists()
     {
-        add_detection("package_managers", "Package manifest detected", &mut seen_packs, &mut detections);
+        add_detection(
+            "package_managers",
+            "Package manifest detected",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
 
     // --- Secrets managers ---
     if dir.join(".vault").is_dir() || dir.join("vault.hcl").exists() {
-        add_detection("secrets.vault", "Vault configuration", &mut seen_packs, &mut detections);
+        add_detection(
+            "secrets.vault",
+            "Vault configuration",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
     if dir.join(".op").is_dir() {
-        add_detection("secrets.onepassword", ".op/ directory", &mut seen_packs, &mut detections);
+        add_detection(
+            "secrets.onepassword",
+            ".op/ directory",
+            &mut seen_packs,
+            &mut detections,
+        );
     }
 
     detections
@@ -4288,8 +4418,7 @@ fn contains_word(content: &str, keyword: &str) -> bool {
     let mut start = 0;
     while let Some(pos) = content[start..].find(keyword) {
         let abs_pos = start + pos;
-        let before_ok =
-            abs_pos == 0 || !content_bytes[abs_pos - 1].is_ascii_alphanumeric();
+        let before_ok = abs_pos == 0 || !content_bytes[abs_pos - 1].is_ascii_alphanumeric();
         let after_pos = abs_pos + kw_len;
         let after_ok =
             after_pos >= content_len || !content_bytes[after_pos].is_ascii_alphanumeric();
@@ -4313,11 +4442,42 @@ fn detect_database_packs_from_deps(
 ) {
     // Database driver keywords mapped to pack IDs
     let db_patterns: &[(&str, &[&str])] = &[
-        ("database.postgresql", &["pg", "postgres", "postgresql", "psycopg", "asyncpg", "diesel", "sqlx", "tokio-postgres", "libpq"]),
-        ("database.mysql", &["mysql", "mysql2", "mysqlclient", "pymysql", "mariadb"]),
-        ("database.mongodb", &["mongoose", "mongodb", "mongoid", "pymongo", "motor"]),
-        ("database.redis", &["redis", "ioredis", "redis-py", "predis", "hiredis"]),
-        ("database.sqlite", &["sqlite", "sqlite3", "better-sqlite3", "rusqlite", "frankensqlite"]),
+        (
+            "database.postgresql",
+            &[
+                "pg",
+                "postgres",
+                "postgresql",
+                "psycopg",
+                "asyncpg",
+                "diesel",
+                "sqlx",
+                "tokio-postgres",
+                "libpq",
+            ],
+        ),
+        (
+            "database.mysql",
+            &["mysql", "mysql2", "mysqlclient", "pymysql", "mariadb"],
+        ),
+        (
+            "database.mongodb",
+            &["mongoose", "mongodb", "mongoid", "pymongo", "motor"],
+        ),
+        (
+            "database.redis",
+            &["redis", "ioredis", "redis-py", "predis", "hiredis"],
+        ),
+        (
+            "database.sqlite",
+            &[
+                "sqlite",
+                "sqlite3",
+                "better-sqlite3",
+                "rusqlite",
+                "frankensqlite",
+            ],
+        ),
         ("database.supabase", &["supabase", "@supabase/supabase-js"]),
     ];
 
@@ -4377,10 +4537,7 @@ fn print_auto_detect_results(
             scan_dir.display()
         );
     } else {
-        println!(
-            "Scanning {} for project files...",
-            scan_dir.display()
-        );
+        println!("Scanning {} for project files...", scan_dir.display());
     }
     println!();
 
@@ -4402,10 +4559,7 @@ fn print_auto_detect_results(
     println!();
 
     // Always-on packs
-    println!(
-        "{}",
-        "Always enabled: core.filesystem, core.git".dimmed()
-    );
+    println!("{}", "Always enabled: core.filesystem, core.git".dimmed());
     println!();
 
     if dry_run {
@@ -4424,15 +4578,11 @@ fn init_config_with_packs(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config = generate_config_with_packs(packs);
 
-    let path_str = output.unwrap_or_else(|| {
-        config_path().to_string_lossy().into_owned()
-    });
+    let path_str = output.unwrap_or_else(|| config_path().to_string_lossy().into_owned());
     let path = std::path::Path::new(&path_str);
 
     if path.exists() && !force {
-        return Err(
-            format!("File exists: {}. Use --force to overwrite.", path.display()).into(),
-        );
+        return Err(format!("File exists: {}. Use --force to overwrite.", path.display()).into());
     }
 
     // Create parent directories if needed
@@ -4460,7 +4610,9 @@ fn generate_config_with_packs(packs: &[String]) -> String {
     lines.push(String::new());
     lines.push("[packs]".to_string());
     lines.push("# Auto-detected packs from project files.".to_string());
-    lines.push("# Core packs (core.filesystem, core.git) are always enabled implicitly.".to_string());
+    lines.push(
+        "# Core packs (core.filesystem, core.git) are always enabled implicitly.".to_string(),
+    );
 
     if packs.is_empty() {
         lines.push("enabled = []".to_string());
@@ -12896,9 +13048,7 @@ mod tests {
     fn test_cli_parse_init_auto_with_project_dir() {
         let cli = Cli::parse_from(["dcg", "init", "--auto", "--project-dir", "/tmp/myproject"]);
         if let Some(Command::Init {
-            auto,
-            project_dir,
-            ..
+            auto, project_dir, ..
         }) = cli.command
         {
             assert!(auto);
@@ -12912,7 +13062,10 @@ mod tests {
     fn test_detect_project_packs_empty_dir() {
         let tmp = tempfile::tempdir().unwrap();
         let detections = detect_project_packs(tmp.path());
-        assert!(detections.is_empty(), "Empty dir should produce no detections");
+        assert!(
+            detections.is_empty(),
+            "Empty dir should produce no detections"
+        );
     }
 
     #[test]
@@ -12921,7 +13074,10 @@ mod tests {
         std::fs::write(tmp.path().join("Dockerfile"), "FROM alpine").unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"containers.docker"), "Should detect Docker from Dockerfile");
+        assert!(
+            pack_ids.contains(&"containers.docker"),
+            "Should detect Docker from Dockerfile"
+        );
     }
 
     #[test]
@@ -12930,8 +13086,14 @@ mod tests {
         std::fs::write(tmp.path().join("docker-compose.yml"), "version: '3'").unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"containers.compose"), "Should detect compose");
-        assert!(pack_ids.contains(&"containers.docker"), "Should also detect docker from compose");
+        assert!(
+            pack_ids.contains(&"containers.compose"),
+            "Should detect compose"
+        );
+        assert!(
+            pack_ids.contains(&"containers.docker"),
+            "Should also detect docker from compose"
+        );
     }
 
     #[test]
@@ -12940,7 +13102,10 @@ mod tests {
         std::fs::write(tmp.path().join("main.tf"), "resource {}").unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"infrastructure.terraform"), "Should detect terraform from main.tf");
+        assert!(
+            pack_ids.contains(&"infrastructure.terraform"),
+            "Should detect terraform from main.tf"
+        );
     }
 
     #[test]
@@ -12951,7 +13116,10 @@ mod tests {
         std::fs::write(workflows.join("ci.yml"), "on: push").unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"cicd.github_actions"), "Should detect GitHub Actions");
+        assert!(
+            pack_ids.contains(&"cicd.github_actions"),
+            "Should detect GitHub Actions"
+        );
     }
 
     #[test]
@@ -12961,8 +13129,14 @@ mod tests {
         std::fs::write(tmp.path().join("Chart.yaml"), "apiVersion: v2").unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"kubernetes.kubectl"), "Should detect kubectl from k8s/");
-        assert!(pack_ids.contains(&"kubernetes.helm"), "Should detect helm from Chart.yaml");
+        assert!(
+            pack_ids.contains(&"kubernetes.kubectl"),
+            "Should detect kubectl from k8s/"
+        );
+        assert!(
+            pack_ids.contains(&"kubernetes.helm"),
+            "Should detect helm from Chart.yaml"
+        );
     }
 
     #[test]
@@ -12975,9 +13149,18 @@ mod tests {
         .unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"database.postgresql"), "Should detect postgres from pg dep");
-        assert!(pack_ids.contains(&"database.mongodb"), "Should detect mongo from mongoose dep");
-        assert!(pack_ids.contains(&"package_managers"), "Should detect package_managers from package.json");
+        assert!(
+            pack_ids.contains(&"database.postgresql"),
+            "Should detect postgres from pg dep"
+        );
+        assert!(
+            pack_ids.contains(&"database.mongodb"),
+            "Should detect mongo from mongoose dep"
+        );
+        assert!(
+            pack_ids.contains(&"package_managers"),
+            "Should detect package_managers from package.json"
+        );
     }
 
     #[test]
@@ -12986,7 +13169,10 @@ mod tests {
         std::fs::write(tmp.path().join("serverless.yml"), "service: myapp").unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"cloud.aws"), "Should detect AWS from serverless.yml");
+        assert!(
+            pack_ids.contains(&"cloud.aws"),
+            "Should detect AWS from serverless.yml"
+        );
     }
 
     #[test]
@@ -12995,7 +13181,10 @@ mod tests {
         std::fs::write(tmp.path().join("cloudbuild.yaml"), "steps:").unwrap();
         let detections = detect_project_packs(tmp.path());
         let pack_ids: Vec<&str> = detections.iter().map(|d| d.pack_id.as_str()).collect();
-        assert!(pack_ids.contains(&"cloud.gcp"), "Should detect GCP from cloudbuild.yaml");
+        assert!(
+            pack_ids.contains(&"cloud.gcp"),
+            "Should detect GCP from cloudbuild.yaml"
+        );
     }
 
     #[test]
