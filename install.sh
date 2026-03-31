@@ -1583,7 +1583,7 @@ for entry in config['hooks']['PreToolUse']:
         if 'hooks' in entry:
             for hook in entry['hooks']:
                 if isinstance(hook, dict) and 'command' in hook:
-                    cmd = hook.get('command', '')
+                    cmd = str(hook.get('command', ''))
                     if 'dcg' not in cmd:  # Don't duplicate dcg
                         bash_hooks.append(hook)
                     elif 'dcg' in cmd:
