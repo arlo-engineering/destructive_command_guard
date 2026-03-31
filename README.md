@@ -80,22 +80,33 @@ enabled = [
 ### Agent-Specific Profiles
 
 dcg automatically detects which AI coding agent is invoking it and can apply
-agent-specific trust levels:
+agent-specific configuration. The `trust_level` field is an **advisory label**
+recorded in JSON output and logs — it does not directly change rule evaluation.
+Behavioral differences come from the other profile fields:
+
+| Option | Effect |
+|--------|--------|
+| `disabled_packs` | Removes rule packs from evaluation |
+| `extra_packs` | Adds rule packs to evaluation |
+| `additional_allowlist` | Adds command patterns that bypass deny rules |
+| `disabled_allowlist` | When `true`, ignores all allowlist entries |
 
 ```toml
-# Trust Claude Code more
+# Trust Claude Code more — wider allowlist, fewer packs
 [agents.claude-code]
 trust_level = "high"
-additional_allowlist = ["npm run build"]
+additional_allowlist = ["npm run build", "cargo test"]
+disabled_packs = ["kubernetes"]
 
-# Restrict unknown agents
+# Restrict unknown agents — extra rules, no allowlist bypass
 [agents.unknown]
 trust_level = "low"
 extra_packs = ["paranoid"]
+disabled_allowlist = true
 ```
 
-See [docs/agents.md](docs/agents.md) for full documentation on supported agents
-and configuration options.
+See [docs/agents.md](docs/agents.md) for full documentation on supported agents,
+trust levels, and configuration options.
 
 ---
 

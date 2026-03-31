@@ -27,13 +27,72 @@ Agent detection follows this priority order:
 
 ## Trust Levels
 
-Three trust levels control how strictly dcg evaluates commands:
+Three trust levels label how much you trust a given agent:
 
 | Level | Description |
 |-------|-------------|
-| `high` | Relaxed evaluation; agent has proven reliable |
-| `medium` | Default; standard evaluation rules apply |
-| `low` | Strict evaluation; extra caution for unknown agents |
+| `high` | Agent has proven reliable; typically paired with a broader allowlist and fewer packs |
+| `medium` | Default; standard configuration |
+| `low` | Extra caution; typically paired with more packs and a restricted allowlist |
+
+### How trust levels work
+
+The `trust_level` field is an **advisory label**. It is recorded in JSON output
+and shown in verbose/debug logs so you (and downstream tooling) can see what
+trust tier was in effect for a given evaluation. It does **not**, by itself,
+change which rules fire or how confidence scores are computed.
+
+All behavioral differences between agents come from the other profile options
+that you configure alongside the trust level:
+
+| Option | What it does | Typical usage |
+|--------|-------------|---------------|
+| `disabled_packs` | Removes packs (and their sub-packs) from evaluation | High-trust agents that don't need certain rule sets |
+| `extra_packs` | Adds packs to evaluation | Low-trust agents that should be checked against more rules |
+| `additional_allowlist` | Adds command patterns that bypass deny rules | High-trust agents with known-safe build commands |
+| `disabled_allowlist` | When `true`, ignores *all* allowlist entries (base + additional) | Low-trust agents that should never get a free pass |
+
+In other words: setting `trust_level = "high"` alone does not relax any rules.
+You must also adjust `disabled_packs`, `extra_packs`, `additional_allowlist`,
+or `disabled_allowlist` to change evaluation behavior.
+
+### Why the separation?
+
+This design is intentional. Trust is not a magic knob -- different environments
+need different trade-offs. A "high trust" agent in one project might need strict
+database rules but relaxed filesystem rules, while in another project the
+opposite applies. By keeping the label separate from the behavioral knobs, dcg
+gives you full control without hidden side effects.
+
+### Practical examples
+
+**High-trust agent** -- a well-tested agent that runs routine build/test
+commands. You widen the allowlist and disable packs that produce false positives
+for its workflow:
+
+```toml
+[agents.claude-code]
+trust_level = "high"
+additional_allowlist = ["npm run build", "cargo test", "make lint"]
+disabled_packs = ["kubernetes"]
+```
+
+**Medium-trust agent (default)** -- standard rules, no overrides:
+
+```toml
+[agents.default]
+trust_level = "medium"
+```
+
+**Low-trust agent** -- an unknown or new agent. You add extra packs and disable
+the allowlist so every command is evaluated against the full rule set:
+
+```toml
+[agents.unknown]
+trust_level = "low"
+disabled_allowlist = true
+extra_packs = ["core", "database", "filesystem"]
+```
 
 ## Configuration
 
@@ -48,6 +107,7 @@ additional_allowlist = ["npm run build", "cargo test"]
 # Restrict unknown agents
 [agents.unknown]
 trust_level = "low"
+disabled_allowlist = true
 extra_packs = ["paranoid"]
 
 # Default profile for unspecified agents
@@ -57,13 +117,13 @@ trust_level = "medium"
 
 ### Profile Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `trust_level` | string | `"high"`, `"medium"`, or `"low"` |
-| `disabled_packs` | array | Packs to disable for this agent |
-| `extra_packs` | array | Additional packs to enable |
-| `additional_allowlist` | array | Commands to allowlist for this agent |
-| `disabled_allowlist` | bool | If true, ignore base allowlist for this agent |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `trust_level` | string | `"medium"` | Advisory label: `"high"`, `"medium"`, or `"low"`. Included in JSON/verbose output but does not change rule evaluation by itself. |
+| `disabled_packs` | array | `[]` | Packs to remove from evaluation for this agent (including sub-packs). |
+| `extra_packs` | array | `[]` | Additional packs to enable for this agent. |
+| `additional_allowlist` | array | `[]` | Command patterns to allowlist for this agent (added on top of the base allowlist). |
+| `disabled_allowlist` | bool | `false` | If `true`, ignore all allowlist entries for this agent (more restrictive). |
 
 ### Example: Restrictive Config for CI
 
