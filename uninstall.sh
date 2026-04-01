@@ -334,6 +334,77 @@ unconfigure_aider() {
     return 0
 }
 
+# Remove dcg hook from Cursor IDE
+unconfigure_cursor() {
+    local hooks_json="$HOME/.cursor/hooks.json"
+    local hook_script="$HOME/.cursor/hooks/dcg-pre-shell.py"
+
+    local removed=0
+
+    # Remove the hook script
+    if [ -f "$hook_script" ] && grep -q 'dcg-cursor-hook' "$hook_script" 2>/dev/null; then
+        rm -f "$hook_script" 2>/dev/null && removed=1
+    fi
+
+    # Remove entry from hooks.json
+    if [ -f "$hooks_json" ] && grep -q 'dcg' "$hooks_json" 2>/dev/null; then
+        if command -v python3 >/dev/null 2>&1; then
+            python3 - "$hooks_json" <<'PYEOF'
+import json
+import os
+import sys
+
+hooks_file = sys.argv[1]
+
+try:
+    with open(hooks_file, "r") as f:
+        settings = json.load(f)
+except (IOError, ValueError, json.JSONDecodeError):
+    sys.exit(0)
+
+if not isinstance(settings, dict):
+    sys.exit(0)
+
+hooks = settings.get("hooks")
+if not isinstance(hooks, dict):
+    sys.exit(0)
+
+entries = hooks.get("beforeShellExecution")
+if not isinstance(entries, list):
+    sys.exit(0)
+
+new_entries = [e for e in entries if not (isinstance(e, dict) and "dcg" in str(e.get("command", "")))]
+if len(new_entries) == len(entries):
+    sys.exit(0)
+
+if new_entries:
+    hooks["beforeShellExecution"] = new_entries
+else:
+    hooks.pop("beforeShellExecution", None)
+
+if not hooks:
+    settings.pop("hooks", None)
+
+if not settings or settings == {"version": 1}:
+    os.remove(hooks_file)
+else:
+    with open(hooks_file, "w") as f:
+        json.dump(settings, f, indent=2)
+
+print("removed", file=sys.stderr)
+PYEOF
+            removed=1
+        else
+            warn "python3 not available - cannot safely edit Cursor hooks.json"
+            warn "Please manually remove dcg from $hooks_json"
+            return 1
+        fi
+    fi
+
+    [ "$removed" -eq 1 ] && return 0
+    return 0
+}
+
 # Main uninstall function
 main() {
     log "${BOLD}dcg uninstaller${NC}"
@@ -380,6 +451,13 @@ main() {
     fi
     if [ -n "$copilot_hook_file" ] && [ -f "$copilot_hook_file" ] && grep -q 'dcg' "$copilot_hook_file" 2>/dev/null; then
         log "  • GitHub Copilot CLI hook ($copilot_hook_file)"
+        found_anything=1
+    fi
+    local cursor_hooks_json="$HOME/.cursor/hooks.json"
+    local cursor_hook_script="$HOME/.cursor/hooks/dcg-pre-shell.py"
+    if { [ -f "$cursor_hook_script" ] && grep -q 'dcg-cursor-hook' "$cursor_hook_script" 2>/dev/null; } || \
+       { [ -f "$cursor_hooks_json" ] && grep -q 'dcg' "$cursor_hooks_json" 2>/dev/null; }; then
+        log "  • Cursor IDE hook ($cursor_hooks_json, $cursor_hook_script)"
         found_anything=1
     fi
 
@@ -437,6 +515,11 @@ main() {
     # Remove GitHub Copilot CLI hook (repo-local .github/hooks/dcg.json)
     if unconfigure_copilot 2>&1 | grep -q "removed"; then
         ok "Removed GitHub Copilot CLI hook"
+    fi
+
+    # Remove Cursor IDE hook
+    if unconfigure_cursor 2>&1 | grep -q "removed"; then
+        ok "Removed Cursor IDE hook"
     fi
 
     # Remove Aider config

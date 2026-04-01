@@ -18,6 +18,7 @@
 //! - Codex CLI: `CODEX_CLI=1` env var
 //! - Gemini CLI: `GEMINI_CLI=1` env var
 //! - Copilot CLI: `COPILOT_CLI=1` or `COPILOT_AGENT_START_TIME_SEC` env var
+//! - Cursor IDE: `CURSOR_IDE=1` env var (set by dcg's Cursor hook script)
 //!
 //! # Usage
 //!
@@ -56,6 +57,8 @@ pub enum Agent {
     GeminiCli,
     /// GitHub Copilot CLI.
     CopilotCli,
+    /// Cursor IDE (via beforeShellExecution hook).
+    CursorIde,
     /// A custom agent specified by name.
     Custom(String),
     /// Unknown or undetected agent.
@@ -77,6 +80,7 @@ impl Agent {
             Self::CodexCli => "codex-cli",
             Self::GeminiCli => "gemini-cli",
             Self::CopilotCli => "copilot-cli",
+            Self::CursorIde => "cursor-ide",
             Self::Custom(name) => name,
             Self::Unknown => "unknown",
         }
@@ -94,6 +98,7 @@ impl Agent {
                 | Self::CodexCli
                 | Self::GeminiCli
                 | Self::CopilotCli
+                | Self::CursorIde
         )
     }
 
@@ -112,6 +117,7 @@ impl Agent {
     /// - `"continue"` -> `Continue`
     /// - `"codex"`, `"codex-cli"`, `"codex_cli"` -> `CodexCli`
     /// - `"gemini"`, `"gemini-cli"`, `"gemini_cli"` -> `GeminiCli`
+    /// - `"cursor"`, `"cursor-ide"`, `"cursor_ide"` -> `CursorIde`
     /// - `"unknown"` -> `Unknown`
     /// - Any other value -> `Custom(value)`
     #[must_use]
@@ -125,6 +131,7 @@ impl Agent {
             "codexcli" | "codex" => Self::CodexCli,
             "geminicli" | "gemini" => Self::GeminiCli,
             "copilotcli" | "copilot" => Self::CopilotCli,
+            "cursoride" | "cursor" => Self::CursorIde,
             "unknown" => Self::Unknown,
             _ => Self::Custom(name.to_string()),
         }
@@ -141,6 +148,7 @@ impl fmt::Display for Agent {
             Self::CodexCli => write!(f, "Codex CLI"),
             Self::GeminiCli => write!(f, "Gemini CLI"),
             Self::CopilotCli => write!(f, "GitHub Copilot CLI"),
+            Self::CursorIde => write!(f, "Cursor IDE"),
             Self::Custom(name) => write!(f, "{name}"),
             Self::Unknown => write!(f, "Unknown"),
         }
@@ -386,6 +394,15 @@ fn detect_from_environment() -> Option<DetectionResult> {
         ));
     }
 
+    // Cursor IDE detection (set by dcg's Cursor hook script before invoking dcg)
+    if std::env::var("CURSOR_IDE").is_ok() {
+        return Some(DetectionResult::new(
+            Agent::CursorIde,
+            DetectionMethod::Environment,
+            Some("CURSOR_IDE".to_string()),
+        ));
+    }
+
     None
 }
 
@@ -489,6 +506,7 @@ mod tests {
         assert_eq!(Agent::CodexCli.config_key(), "codex-cli");
         assert_eq!(Agent::GeminiCli.config_key(), "gemini-cli");
         assert_eq!(Agent::CopilotCli.config_key(), "copilot-cli");
+        assert_eq!(Agent::CursorIde.config_key(), "cursor-ide");
         assert_eq!(Agent::Unknown.config_key(), "unknown");
         assert_eq!(
             Agent::Custom("my-agent".to_string()).config_key(),
@@ -519,6 +537,9 @@ mod tests {
         assert_eq!(Agent::from_name("copilot"), Agent::CopilotCli);
         assert_eq!(Agent::from_name("copilotcli"), Agent::CopilotCli);
         assert_eq!(Agent::from_name("copilot-cli"), Agent::CopilotCli);
+        assert_eq!(Agent::from_name("cursor"), Agent::CursorIde);
+        assert_eq!(Agent::from_name("cursor-ide"), Agent::CursorIde);
+        assert_eq!(Agent::from_name("cursor_ide"), Agent::CursorIde);
 
         // Custom agents
         assert_eq!(
@@ -536,6 +557,7 @@ mod tests {
         assert_eq!(format!("{}", Agent::CodexCli), "Codex CLI");
         assert_eq!(format!("{}", Agent::GeminiCli), "Gemini CLI");
         assert_eq!(format!("{}", Agent::CopilotCli), "GitHub Copilot CLI");
+        assert_eq!(format!("{}", Agent::CursorIde), "Cursor IDE");
         assert_eq!(format!("{}", Agent::Unknown), "Unknown");
         assert_eq!(
             format!("{}", Agent::Custom("MyAgent".to_string())),
@@ -549,6 +571,7 @@ mod tests {
         assert!(Agent::AugmentCode.is_known());
         assert!(Agent::Aider.is_known());
         assert!(Agent::CopilotCli.is_known());
+        assert!(Agent::CursorIde.is_known());
         assert!(!Agent::Unknown.is_known());
         assert!(!Agent::Custom("x".to_string()).is_known());
     }

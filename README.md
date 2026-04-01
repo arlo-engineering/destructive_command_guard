@@ -13,7 +13,7 @@
 
 A high-performance hook for AI coding agents that blocks destructive commands before they execute, protecting your work from accidental deletion.
 
-**Supported:** [Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [OpenCode](https://opencode.ai) (via [community plugin](https://github.com/aspiers/ai-config/blob/main/.config/opencode/plugins/dcg-guard.js)), [Aider](https://aider.chat/) (limited—git hooks only), [Continue](https://continue.dev) (detection only), [Codex CLI](https://github.com/openai/codex)
+**Supported:** [Claude Code](https://claude.ai/code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/coding-agent/about-hooks), [Cursor IDE](https://cursor.com), [OpenCode](https://opencode.ai) (via [community plugin](https://github.com/aspiers/ai-config/blob/main/.config/opencode/plugins/dcg-guard.js)), [Aider](https://aider.chat/) (limited—git hooks only), [Continue](https://continue.dev) (detection only), [Codex CLI](https://github.com/openai/codex)
 
 <div align="center">
 <h3>Quick Install</h3>

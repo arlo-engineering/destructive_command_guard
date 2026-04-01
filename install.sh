@@ -1910,12 +1910,16 @@ def main():
     dcg_bin = os.environ.get("DCG_BIN", "dcg")
     hook_input = {"tool_name": "Bash", "tool_input": {"command": command}}
 
+    env = os.environ.copy()
+    env["CURSOR_IDE"] = "1"
+
     try:
         proc = subprocess.run(
             [dcg_bin],
             input=json.dumps(hook_input),
             text=True,
             capture_output=True,
+            env=env,
         )
     except Exception:
         allow()

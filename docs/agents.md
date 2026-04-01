@@ -15,6 +15,7 @@ trust to well-behaved agents while maintaining strict controls for unknown ones.
 | Codex CLI | Environment | `CODEX_CLI=1` |
 | Gemini CLI | Environment | `GEMINI_CLI=1` |
 | GitHub Copilot CLI | Environment | `COPILOT_CLI=1` or `COPILOT_AGENT_START_TIME_SEC` |
+| Cursor IDE | Environment | `CURSOR_IDE=1` (set by dcg's hook script) |
 
 ## Detection Priority
 
