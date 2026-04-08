@@ -390,7 +390,13 @@ check_installed_version() {
   fi
 
   local installed_version
-  installed_version=$("$DEST/dcg" --version 2>/dev/null | head -1 | sed 's/.*\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/')
+  # dcg >= 0.4.1 prints bare version to stdout; try that first
+  installed_version=$("$DEST/dcg" --version 2>/dev/null | head -1 | tr -d '[:space:]')
+  if [ -z "$installed_version" ]; then
+    # Older versions output only to stderr — parse the decorative box
+    installed_version=$(NO_COLOR=1 "$DEST/dcg" --version 2>&1 | \
+      sed -n 's/.*dcg v\{0,1\}\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -1)
+  fi
 
   if [ -z "$installed_version" ]; then
     return 1
@@ -863,51 +869,7 @@ preflight_checks
 if [ "$FORCE_INSTALL" -eq 0 ] && check_installed_version "$VERSION"; then
   ok "dcg $VERSION is already installed at $DEST/dcg"
   info "Use --force to reinstall"
-
-  if [ "$NO_CONFIGURE" -eq 0 ]; then
-    # Still run agent configuration (idempotent) to ensure hooks are set up
-    detect_predecessor
-    if [ "$PREDECESSOR_FOUND" -eq 1 ]; then
-      show_upgrade_banner
-    fi
-
-    # Configure agents (these are already idempotent)
-    configure_claude_code "$CLAUDE_SETTINGS" "0"
-    configure_gemini "$GEMINI_SETTINGS"
-    configure_aider "$AIDER_SETTINGS"
-    configure_continue
-    configure_codex
-    configure_copilot
-    configure_cursor
-  else
-    info "Skipping agent configuration (--no-configure)"
-  fi
-
-  # Show final summary even when skipping download
-  echo ""
-  case "$CLAUDE_STATUS" in
-    already) ok "Claude Code: Already configured" ;;
-    merged|created) ok "Claude Code: Configured" ;;
-    *) : ;;
-  esac
-  case "$GEMINI_STATUS" in
-    already) ok "Gemini CLI: Already configured" ;;
-    merged|created) ok "Gemini CLI: Configured" ;;
-    skipped|"") info "Gemini CLI: Not installed (skipped)" ;;
-    *) : ;;
-  esac
-  case "$COPILOT_STATUS" in
-    already) ok "GitHub Copilot CLI: Already configured" ;;
-    merged|created) ok "GitHub Copilot CLI: Configured ($COPILOT_HOOK_FILE)" ;;
-    no_repo) info "GitHub Copilot CLI: Installed, but not in a git repository (skipped)" ;;
-    skipped|"") info "GitHub Copilot CLI: Not installed (skipped)" ;;
-    failed) warn "GitHub Copilot CLI: Configuration failed (python3 required for merge)" ;;
-    *) : ;;
-  esac
-  [ -n "$COPILOT_BACKUP" ] && info "GitHub Copilot CLI backup: $COPILOT_BACKUP"
-
   maybe_install_completions
-
   exit 0
 fi
 

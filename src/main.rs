@@ -121,6 +121,9 @@ fn install_history_shutdown_handler(
 
 /// Print version information and exit.
 fn print_version() {
+    // Machine-readable version on stdout (for scripts, installers, etc.)
+    println!("{PKG_VERSION}");
+
     // ASCII art logo - compact shield design
     eprintln!();
     eprintln!(
