@@ -46,6 +46,8 @@ curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_comm
 | **Fail-Open Design** | Never blocks your workflow due to timeouts or parse errors |
 | **Explain Mode** | `dcg explain "command"` shows exactly why something is blocked |
 
+The repository also includes a ready-to-use PR scanning workflow in `.github/workflows/scan.yml` for catching destructive commands during review.
+
 ### Quick Example
 
 ```bash
