@@ -131,6 +131,7 @@ enabled = ["kubernetes", "database", "containers"]
 
 - Enable a whole category by specifying its prefix (e.g., `kubernetes`).
 - Heredoc/inline-script scanning is configured under `[heredoc]`, not `[packs]`.
+- The bundled `.github/workflows/scan.yml` workflow is a good starting point for PR-time destructive-command scanning.
 - See `docs/configuration.md` for full configuration details.
 
 ---
