@@ -10144,7 +10144,8 @@ fn handle_version_check(
 }
 
 fn self_update_unix(update: UpdateCommand) -> Result<(), Box<dyn std::error::Error>> {
-    let script_url = "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/master/install.sh";
+    let script_url =
+        "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh";
     let mut args: Vec<String> = Vec::new();
 
     if let Some(version) = update.version {
@@ -10223,7 +10224,8 @@ fn self_update_windows(update: UpdateCommand) -> Result<(), Box<dyn std::error::
         );
     }
 
-    let script_url = "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/master/install.ps1";
+    let script_url =
+        "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.ps1";
     let mut args: Vec<String> = Vec::new();
 
     if let Some(version) = update.version {
