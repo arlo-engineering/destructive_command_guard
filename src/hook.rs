@@ -617,7 +617,9 @@ pub fn print_colorful_warning(
                 .filter(|matched| !matched.is_empty())
                 .map_or_else(
                     || HighlightSpan::new(s.start, s.end),
-                    |matched| HighlightSpan::with_label(s.start, s.end, format!("Matched: {matched}")),
+                    |matched| {
+                        HighlightSpan::with_label(s.start, s.end, format!("Matched: {matched}"))
+                    },
                 )
         })
         .unwrap_or_else(|| HighlightSpan::new(0, 0)); // Fallback
