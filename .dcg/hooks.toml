@@ -1,0 +1,10 @@
+[scan.paths]
+# These files intentionally contain destructive command literals for legitimate
+# installer/uninstaller cleanup flows and end-to-end detection fixtures.
+# Exclude them from repository scanning so PR diff scans keep focusing on
+# accidental destructive commands in normal project code.
+exclude = [
+  "install.sh",
+  "uninstall.sh",
+  "scripts/e2e_test.sh",
+]
