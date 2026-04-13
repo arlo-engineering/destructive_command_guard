@@ -835,7 +835,7 @@ fn print_help() {
     eprintln!("  {}", "─".repeat(50).bright_black());
     eprintln!(
         "    📖 {}",
-        "https://github.com/Dicklesworthstone/destructive_command_guard"
+        "https://github.com/arlo-engineering/destructive_command_guard"
             .blue()
             .underline()
     );

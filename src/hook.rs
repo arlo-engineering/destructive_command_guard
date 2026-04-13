@@ -681,7 +681,7 @@ pub fn print_colorful_warning(
     eprintln!();
     eprintln!("{footer_style}False positive? File an issue:{reset}");
     eprintln!(
-        "{footer_style}https://github.com/Dicklesworthstone/destructive_command_guard/issues/new?template=false_positive.yml{reset}"
+        "{footer_style}https://github.com/arlo-engineering/destructive_command_guard/issues/new?template=false_positive.yml{reset}"
     );
     eprintln!();
 }

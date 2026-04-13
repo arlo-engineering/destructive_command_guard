@@ -1,0 +1,12 @@
+---
+description: Use GitHub Copilot MCP first for PR creation
+alwaysApply: true
+---
+
+# Pull Request Creation Preference
+
+When the user asks to create a pull request for this repository, use the GitHub Copilot MCP path first if it is available and authenticated.
+
+Only fall back to `gh` when the GitHub Copilot MCP cannot perform the operation or is unavailable.
+
+Before calling any MCP tool, read its tool schema/descriptor first.

@@ -235,7 +235,7 @@ jobs:
           fi
           echo "- Upload: Attempted (check Codecov dashboard for status)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Dashboard: https://codecov.io/gh/Dicklesworthstone/destructive_command_guard" >> $GITHUB_STEP_SUMMARY
+          echo "Dashboard: https://codecov.io/gh/arlo-engineering/destructive_command_guard" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4

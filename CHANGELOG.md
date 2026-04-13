@@ -5,7 +5,7 @@ All notable changes to **dcg** (Destructive Command Guard) are documented here.
 Versions marked **[Release]** have published GitHub Releases with pre-built binaries.
 Versions marked **[Tag]** are git tags only (no binaries published).
 
-Repository: <https://github.com/Dicklesworthstone/destructive_command_guard>
+Repository: <https://github.com/arlo-engineering/destructive_command_guard>
 
 ---
 

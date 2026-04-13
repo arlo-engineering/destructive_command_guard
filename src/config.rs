@@ -3257,7 +3257,7 @@ impl Config {
     #[allow(clippy::too_many_lines)]
     pub fn generate_sample_config() -> String {
         r#"# dcg configuration
-# https://github.com/Dicklesworthstone/destructive_command_guard
+# https://github.com/arlo-engineering/destructive_command_guard
 
 [general]
 # Color output: "auto" | "always" | "never"
