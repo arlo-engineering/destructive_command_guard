@@ -2463,58 +2463,52 @@ fn list_packs(
         return;
     }
 
-    // Rich output when feature enabled
-    #[cfg(feature = "rich-output")]
-    {
-        list_packs_rich(config, enabled_only, verbose);
+    print_packs_pretty(&pack_list, enabled_only, verbose);
+}
+
+fn print_packs_pretty(pack_list: &[PackInfo], enabled_only: bool, verbose: bool) {
+    println!("Available packs:");
+    println!();
+
+    let mut by_category: std::collections::BTreeMap<&str, Vec<&PackInfo>> =
+        std::collections::BTreeMap::new();
+    for info in pack_list {
+        let category = info.category.as_str();
+        by_category.entry(category).or_default().push(info);
     }
 
-    // Pretty output (default, non-rich fallback)
-    #[cfg(not(feature = "rich-output"))]
-    {
-        println!("Available packs:");
-        println!();
-
-        // Group by category (use pack_list which includes both built-in and external packs)
-        let mut by_category: std::collections::BTreeMap<&str, Vec<&PackInfo>> =
-            std::collections::BTreeMap::new();
-        for info in &pack_list {
-            let category = info.category.as_str();
-            by_category.entry(category).or_default().push(info);
-        }
-
-        for (category, packs) in by_category {
-            println!("  {category}:");
-            for info in packs {
-                if enabled_only && !info.enabled {
-                    continue;
-                }
-
-                let status = if info.enabled { "✓" } else { "○" };
-                if verbose {
-                    println!(
-                        "    {} {} - {} ({} safe, {} destructive)",
-                        status,
-                        info.id,
-                        info.description,
-                        info.safe_pattern_count,
-                        info.destructive_pattern_count
-                    );
-                } else {
-                    println!("    {} {} - {}", status, info.id, info.name);
-                }
+    for (category, packs) in by_category {
+        println!("  {category}:");
+        for info in packs {
+            if enabled_only && !info.enabled {
+                continue;
             }
-            println!();
-        }
 
-        println!("Legend: ✓ = enabled, ○ = disabled");
+            let status = if info.enabled { "✓" } else { "○" };
+            if verbose {
+                println!(
+                    "    {} {} - {} ({} safe, {} destructive)",
+                    status,
+                    info.id,
+                    info.description,
+                    info.safe_pattern_count,
+                    info.destructive_pattern_count
+                );
+            } else {
+                println!("    {} {} - {}", status, info.id, info.name);
+            }
+        }
         println!();
-        println!("Enable packs in ~/.config/dcg/config.toml");
     }
+
+    println!("Legend: ✓ = enabled, ○ = disabled");
+    println!();
+    println!("Enable packs in ~/.config/dcg/config.toml");
 }
 
 /// Rich terminal packs output using DcgConsole and markup.
 #[cfg(feature = "rich-output")]
+#[allow(dead_code)]
 fn list_packs_rich(config: &Config, enabled_only: bool, verbose: bool) {
     use crate::output::console::console;
 
@@ -5770,7 +5764,6 @@ fn parse_git_name_status_z(stdout: &[u8]) -> Vec<std::path::PathBuf> {
 }
 
 /// Print scan report in pretty format.
-#[cfg(not(feature = "rich-output"))]
 fn print_scan_pretty(report: &crate::scan::ScanReport, verbose: bool, top: usize) {
     use crate::output::{ScanResultRow, ScanResultsTable, TableStyle, auto_theme};
     use colored::Colorize;
@@ -5878,7 +5871,8 @@ fn print_scan_pretty(report: &crate::scan::ScanReport, verbose: bool, top: usize
 
 /// Print scan report in pretty format with rich output.
 #[cfg(feature = "rich-output")]
-fn print_scan_pretty(report: &crate::scan::ScanReport, verbose: bool, top: usize) {
+#[allow(dead_code)]
+fn print_scan_pretty_rich(report: &crate::scan::ScanReport, verbose: bool, top: usize) {
     use crate::output::console::console;
     use crate::output::{ScanResultRow, ScanResultsTable, auto_theme};
 
@@ -6262,16 +6256,8 @@ fn handle_explain(
     // Format and print based on selected format
     match format {
         ExplainFormat::Pretty => {
-            #[cfg(feature = "rich-output")]
-            {
-                explain_rich(&trace);
-            }
-            #[cfg(not(feature = "rich-output"))]
-            {
-                let output =
-                    trace.format_pretty(colored::control::SHOULD_COLORIZE.should_colorize());
-                println!("{output}");
-            }
+            let output = trace.format_pretty(colored::control::SHOULD_COLORIZE.should_colorize());
+            println!("{output}");
         }
         ExplainFormat::Compact => {
             println!("{}", trace.format_compact(None));
@@ -6287,6 +6273,7 @@ fn handle_explain(
 
 /// Rich output for explain command with tree visualization.
 #[cfg(feature = "rich-output")]
+#[allow(dead_code)]
 fn explain_rich(trace: &crate::trace::ExplainTrace) {
     use crate::evaluator::EvaluationDecision;
     use crate::output::console::console;
@@ -7170,14 +7157,7 @@ fn handle_stats_rules(
     // Format and print output
     match cmd.format {
         StatsFormat::Pretty => {
-            #[cfg(feature = "rich-output")]
-            {
-                format_rule_metrics_rich(&metrics, cmd.days);
-            }
-            #[cfg(not(feature = "rich-output"))]
-            {
-                print!("{}", format_rule_metrics_pretty(&metrics, cmd.days));
-            }
+            print!("{}", format_rule_metrics_pretty(&metrics, cmd.days));
         }
         StatsFormat::Json => {
             print!("{}", format_rule_metrics_json(&metrics, cmd.days)?);
@@ -7188,7 +7168,6 @@ fn handle_stats_rules(
 }
 
 /// Format rule metrics as a pretty table.
-#[cfg(not(feature = "rich-output"))]
 #[allow(clippy::too_many_lines)]
 fn format_rule_metrics_pretty(metrics: &[crate::history::RuleMetrics], period_days: u64) -> String {
     use std::fmt::Write;
@@ -7350,6 +7329,7 @@ fn format_stats_pack_rich(stats: &crate::stats::AggregatedStats, period_days: u6
 
 /// Rich output for rule metrics.
 #[cfg(feature = "rich-output")]
+#[allow(dead_code)]
 fn format_rule_metrics_rich(metrics: &[crate::history::RuleMetrics], period_days: u64) {
     use crate::output::console::console;
 
@@ -8847,22 +8827,12 @@ fn format_corpus_pretty(output: &CorpusOutput) -> String {
 /// Check installation, configuration, and hook registration
 fn doctor(fix: bool, format: DoctorFormat) {
     match format {
-        DoctorFormat::Pretty => {
-            #[cfg(feature = "rich-output")]
-            {
-                doctor_rich(fix);
-            }
-            #[cfg(not(feature = "rich-output"))]
-            {
-                doctor_pretty(fix);
-            }
-        }
+        DoctorFormat::Pretty => doctor_pretty(fix),
         DoctorFormat::Json => doctor_json(fix),
     }
 }
 
 /// Human-readable doctor output (colored crate, non-rich fallback).
-#[cfg(not(feature = "rich-output"))]
 #[allow(clippy::too_many_lines, clippy::unnecessary_unwrap)]
 fn doctor_pretty(fix: bool) {
     use colored::Colorize;
@@ -9164,6 +9134,7 @@ fn doctor_json(fix: bool) {
 
 /// Rich terminal doctor output using DcgConsole and markup.
 #[cfg(feature = "rich-output")]
+#[allow(dead_code)]
 fn doctor_rich(fix: bool) {
     use crate::output::console::console;
 
