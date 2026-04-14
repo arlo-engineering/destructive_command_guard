@@ -1556,7 +1556,8 @@ mod tests {
         );
         assert!(with_rule.contains("Matched destructive pattern core.git:reset-hard"));
 
-        let pack_only = format_denial_message("rm -rf /tmp/x", "blocked", None, Some("core.fs"), None);
+        let pack_only =
+            format_denial_message("rm -rf /tmp/x", "blocked", None, Some("core.fs"), None);
         assert!(pack_only.contains("Pack: core.fs"));
 
         let bare = format_denial_message("danger", "blocked", None, None, None);
@@ -1667,10 +1668,7 @@ mod tests {
 
     #[test]
     fn test_print_colorful_warning_covers_suggestions_and_span() {
-        let span = MatchSpan {
-            start: 4,
-            end: 8,
-        };
+        let span = MatchSpan { start: 4, end: 8 };
         let sugg = [PatternSuggestion::new("git stash", "Save work first")];
         print_colorful_warning(
             "git reset --hard HEAD",
