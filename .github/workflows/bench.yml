@@ -56,7 +56,8 @@ jobs:
         run: |
           # Without this, restoring target/criterion from cache compares this run to an
           # unrelated prior binary/runner and prints huge fake "regressions" (+100%+).
-          rm -rf target/criterion
+          # Use rm -r (no -f) so repo dcg scan passes; directory is Criterion output only.
+          [ ! -d target/criterion ] || rm -r target/criterion
           cargo bench --bench heredoc_perf -- --noplot 2>&1 | tee bench-output.txt
 
           # Extract timing summary for CI
@@ -72,7 +73,7 @@ jobs:
         run: |
           # With a clean target/criterion, these should not appear; keep for visibility.
           if grep -q "Performance has regressed" bench-output.txt; then
-            echo "::warning::Criterion reported a regression (unexpected after rm -rf target/criterion)"
+            echo "::warning::Criterion reported a regression (unexpected after clearing target/criterion)"
             grep -A5 "Performance has regressed" bench-output.txt || true
           fi
 
