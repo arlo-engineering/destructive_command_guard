@@ -1,0 +1,6 @@
+{
+  "git": {
+    "sha1": "acc9c03b80d9b7b6dbf4d56398535c5ca28bb333"
+  },
+  "path_in_vcs": "crates/rust-mcp-macros"
+}

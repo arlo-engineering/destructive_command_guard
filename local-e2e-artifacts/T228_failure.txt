@@ -1,0 +1,7 @@
+Test ID: T228
+Description: Should BLOCK with pack=dns.route53: aws route53 delete-query-logging-config (route53 dns pack enabled)
+Expected: JSON with permissionDecision: deny
+Actual: <empty>
+
+--- Raw Output ---
+<empty>

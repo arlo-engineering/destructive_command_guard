@@ -1,0 +1,7 @@
+Test ID: T201
+Description: Should BLOCK with pack=cicd.github_actions: gh run cancel (github actions pack enabled)
+Expected: JSON with permissionDecision: deny
+Actual: <empty>
+
+--- Raw Output ---
+<empty>

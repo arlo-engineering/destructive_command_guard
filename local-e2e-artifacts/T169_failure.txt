@@ -1,0 +1,7 @@
+Test ID: T169
+Description: Should BLOCK with pack=cdn.cloudfront: aws cloudfront create-invalidation (cloudfront pack enabled)
+Expected: JSON with permissionDecision: deny
+Actual: <empty>
+
+--- Raw Output ---
+<empty>

@@ -1,0 +1,902 @@
+use proc_macro2::TokenStream;
+use quote::quote;
+use syn::{
+    punctuated::Punctuated, token, Attribute, DeriveInput, GenericArgument, Lit, LitInt, LitStr,
+    Path, PathArguments, Type, TypePath,
+};
+
+pub fn base_crate() -> TokenStream {
+    // Conditionally select the path for Tool
+    if cfg!(feature = "sdk") {
+        quote! { rust_mcp_sdk::schema }
+    } else {
+        quote! { rust_mcp_schema }
+    }
+}
+
+// Check if a type is an Option<T>
+pub fn is_option(ty: &Type) -> bool {
+    if let Type::Path(type_path) = ty {
+        if type_path.path.segments.len() == 1 {
+            let segment = &type_path.path.segments[0];
+            return segment.ident == "Option"
+                && matches!(segment.arguments, PathArguments::AngleBracketed(_));
+        }
+    }
+    false
+}
+
+#[allow(unused)]
+// Check if a type is a Vec<T>
+pub fn is_vec(ty: &Type) -> bool {
+    if let Type::Path(type_path) = ty {
+        if type_path.path.segments.len() == 1 {
+            let segment = &type_path.path.segments[0];
+            return segment.ident == "Vec"
+                && matches!(segment.arguments, PathArguments::AngleBracketed(_));
+        }
+    }
+    false
+}
+
+#[allow(unused)]
+// Extract the inner type from Vec<T> or Option<T>
+pub fn inner_type(ty: &Type) -> Option<&Type> {
+    if let Type::Path(type_path) = ty {
+        if type_path.path.segments.len() == 1 {
+            let segment = &type_path.path.segments[0];
+            if matches!(segment.arguments, PathArguments::AngleBracketed(_)) {
+                if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if args.args.len() == 1 {
+                        if let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
+                            return Some(inner_ty);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn doc_comment(attrs: &[Attribute]) -> Option<String> {
+    let mut docs = Vec::new();
+    for attr in attrs {
+        if attr.path().is_ident("doc") {
+            if let syn::Meta::NameValue(meta) = &attr.meta {
+                if let syn::Expr::Lit(expr_lit) = &meta.value {
+                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
+                        docs.push(lit_str.value().trim().to_string());
+                    }
+                }
+            }
+        }
+    }
+    if docs.is_empty() {
+        None
+    } else {
+        Some(docs.join("\n"))
+    }
+}
+
+pub fn might_be_struct(ty: &Type) -> bool {
+    if let Type::Path(type_path) = ty {
+        if type_path.path.segments.len() == 1 {
+            let ident = type_path.path.segments[0].ident.to_string();
+            let common_types = vec![
+                "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128", "f32", "f64",
+                "bool", "char", "str", "String", "Vec", "Option",
+            ];
+            return !common_types.contains(&ident.as_str())
+                && type_path.path.segments[0].arguments.is_empty();
+        }
+    }
+    false
+}
+
+#[allow(unused)]
+// Helper to check if a type is an enum
+pub fn is_enum(ty: &Type, _input: &DeriveInput) -> bool {
+    if let Type::Path(type_path) = ty {
+        // Check for #[mcp_elicit(enum)] attribute on the type
+        // Since we can't access the enum's definition directly, we rely on the attribute
+        // This assumes the enum is marked with #[mcp_elicit(enum)] in its definition
+        // Alternatively, we could pass a list of known enums, but attribute-based is simpler
+        type_path
+            .path
+            .segments
+            .last()
+            .map(|s| {
+                // For now, we'll assume any type could be an enum if it has the attribute
+                // In a real-world scenario, we'd need to resolve the type's definition
+                // For simplicity, we check if the type name is plausible (not String, bool, i32, i64)
+                let ident = s.ident.to_string();
+                !["String", "bool", "i32", "i64"].contains(&ident.as_str())
+            })
+            .unwrap_or(false)
+    } else {
+        false
+    }
+}
+
+#[allow(unused)]
+// Helper to generate enum parsing code
+pub fn generate_enum_parse(
+    field_type: &Type,
+    field_name: &str,
+    base_crate: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    let type_ident = match field_type {
+        Type::Path(type_path) => type_path.path.segments.last().unwrap().ident.clone(),
+        _ => panic!("Expected path type for enum"),
+    };
+    // Since we can't access the enum's variants directly in this context,
+    // we'll assume the enum has unit variants and expect strings matching their names
+    // In a real-world scenario, you'd parse the enum's Data::Enum to get variant names
+    // For now, we'll generate a generic parse assuming variant names are provided as strings
+    quote! {
+        {
+            // Attempt to parse the string using a match
+            // Since we don't have the variants, we rely on the enum implementing FromStr
+            match s.as_str() {
+                // We can't dynamically list variants, so we use FromStr
+                // If FromStr is not implemented, this will fail at compile time
+                s => s.parse().map_err(|_| #base_crate::RpcError::parse_error().with_message(format!(
+                    "Invalid enum value for field '{}': cannot parse '{}' into {}",
+                    #field_name, s, stringify!(#type_ident)
+                )))?
+            }
+        }
+    }
+}
+
+pub fn type_to_json_schema(ty: &Type, attrs: &[Attribute]) -> proc_macro2::TokenStream {
+    let integer_types = [
+        "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
+    ];
+    let float_types = ["f32", "f64"];
+
+    // Parse custom json_schema attributes
+    let mut title: Option<String> = None;
+    let mut format: Option<String> = None;
+    let mut min_length: Option<u64> = None;
+    let mut max_length: Option<u64> = None;
+    let mut minimum: Option<i64> = None;
+    let mut maximum: Option<i64> = None;
+    let mut default: Option<proc_macro2::TokenStream> = None;
+    let mut attr_description: Option<String> = None;
+
+    for attr in attrs {
+        if attr.path().is_ident("json_schema") {
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("title") {
+                    title = Some(meta.value()?.parse::<LitStr>()?.value());
+                } else if meta.path.is_ident("description") {
+                    attr_description = Some(meta.value()?.parse::<LitStr>()?.value());
+                } else if meta.path.is_ident("format") {
+                    format = Some(meta.value()?.parse::<LitStr>()?.value());
+                } else if meta.path.is_ident("min_length") {
+                    min_length = Some(meta.value()?.parse::<LitInt>()?.base10_parse::<u64>()?);
+                } else if meta.path.is_ident("max_length") {
+                    max_length = Some(meta.value()?.parse::<LitInt>()?.base10_parse::<u64>()?);
+                } else if meta.path.is_ident("minimum") {
+                    minimum = Some(meta.value()?.parse::<LitInt>()?.base10_parse::<i64>()?);
+                } else if meta.path.is_ident("maximum") {
+                    maximum = Some(meta.value()?.parse::<LitInt>()?.base10_parse::<i64>()?);
+                } else if meta.path.is_ident("default") {
+                    let lit = meta.value()?.parse::<Lit>()?;
+                    default = Some(match lit {
+                        Lit::Str(lit_str) => {
+                            let value = lit_str.value();
+                            quote! { serde_json::Value::String(#value.to_string()) }
+                        }
+                        Lit::Int(lit_int) => {
+                            let value = lit_int.base10_parse::<i64>()?;
+                            assert!(
+                                (i64::MIN..=i64::MAX).contains(&value),
+                                "Default value {value} out of range for i64"
+                            );
+                            quote! { serde_json::Value::Number(serde_json::Number::from(#value)) }
+                        }
+                        Lit::Float(lit_float) => {
+                            let value = lit_float.base10_parse::<f64>()?;
+                            quote! { serde_json::Value::Number(serde_json::Number::from_f64(#value).expect("Invalid float")) }
+                        }
+                        Lit::Bool(lit_bool) => {
+                            let value = lit_bool.value();
+                            quote! { serde_json::Value::Bool(#value) }
+                        }
+                        _ => return Err(meta.error("Unsupported default value type")),
+                    });
+                }
+                Ok(())
+            });
+        }
+    }
+
+    let description = attr_description.or(doc_comment(attrs));
+    let description_quote = description.as_ref().map(|desc| {
+        quote! {
+            map.insert("description".to_string(), serde_json::Value::String(#desc.to_string()));
+        }
+    });
+
+    let title_quote = title.as_ref().map(|t| {
+        quote! {
+            map.insert("title".to_string(), serde_json::Value::String(#t.to_string()));
+        }
+    });
+
+    let default_quote = default.as_ref().map(|d| {
+        quote! {
+            map.insert("default".to_string(), #d);
+        }
+    });
+
+    match ty {
+        Type::Path(type_path) => {
+            if type_path.path.segments.len() == 1 {
+                let segment = &type_path.path.segments[0];
+                let ident = &segment.ident;
+
+                // Handle Option<T>
+                if ident == "Option" {
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        if args.args.len() == 1 {
+                            if let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
+                                let inner_schema = type_to_json_schema(inner_ty, attrs);
+                                let format_quote = format.as_ref().map(|f| {
+                                    quote! {
+                                        map.insert("format".to_string(), serde_json::Value::String(#f.to_string()));
+                                    }
+                                });
+                                let min_quote = min_length.as_ref().map(|min| {
+                                    quote! {
+                                        map.insert("minLength".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                                    }
+                                });
+                                let max_quote = max_length.as_ref().map(|max| {
+                                    quote! {
+                                        map.insert("maxLength".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                                    }
+                                });
+                                let min_num_quote = minimum.as_ref().map(|min| {
+                                    quote! {
+                                        map.insert("minimum".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                                    }
+                                });
+                                let max_num_quote = maximum.as_ref().map(|max| {
+                                    quote! {
+                                        map.insert("maximum".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                                    }
+                                });
+                                return quote! {
+                                    {
+                                        let mut map = #inner_schema;
+                                        map.insert("nullable".to_string(), serde_json::Value::Bool(true));
+                                        #description_quote
+                                        #title_quote
+                                        #format_quote
+                                        #min_quote
+                                        #max_quote
+                                        #min_num_quote
+                                        #max_num_quote
+                                        #default_quote
+                                        map
+                                    }
+                                };
+                            }
+                        }
+                    }
+                }
+                // Handle Vec<T>
+                else if ident == "Vec" {
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        if args.args.len() == 1 {
+                            if let syn::GenericArgument::Type(inner_ty) = &args.args[0] {
+                                let inner_schema = type_to_json_schema(inner_ty, &[]);
+                                let min_quote = min_length.as_ref().map(|min| {
+                                    quote! {
+                                        map.insert("minItems".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                                    }
+                                });
+                                let max_quote = max_length.as_ref().map(|max| {
+                                    quote! {
+                                        map.insert("maxItems".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                                    }
+                                });
+                                return quote! {
+                                    {
+                                        let mut map = serde_json::Map::new();
+                                        map.insert("type".to_string(), serde_json::Value::String("array".to_string()));
+                                        map.insert("items".to_string(), serde_json::Value::Object(#inner_schema));
+                                        #description_quote
+                                        #title_quote
+                                        #min_quote
+                                        #max_quote
+                                        #default_quote
+                                        map
+                                    }
+                                };
+                            }
+                        }
+                    }
+                }
+                //  Handle imported serde_json::Number (single-segment case, common when `use serde_json::Number;`)
+                else if ident == "Number" {
+                    let min_num_quote = minimum.as_ref().map(|min| {
+                                        quote! {
+                                            map.insert("minimum".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                                        }
+                                    });
+                    let max_num_quote = maximum.as_ref().map(|max| {
+                                        quote! {
+                                            map.insert("maximum".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                                        }
+                                    });
+                    return quote! {
+                        {
+                            let mut map = serde_json::Map::new();
+                            map.insert("type".to_string(), serde_json::Value::String("number".to_string()));
+                            #description_quote
+                            #title_quote
+                            #min_num_quote
+                            #max_num_quote
+                            #default_quote
+                            map
+                        }
+                    };
+                }
+                // Handle nested structs
+                else if might_be_struct(ty) {
+                    let path = &type_path.path;
+                    return quote! {
+                        {
+                            let mut map = #path::json_schema();
+                            #description_quote
+                            #title_quote
+                            #default_quote
+                            map
+                        }
+                    };
+                }
+                // Handle String
+                else if ident == "String" {
+                    let format_quote = format.as_ref().map(|f| {
+                        quote! {
+                            map.insert("format".to_string(), serde_json::Value::String(#f.to_string()));
+                        }
+                    });
+                    let min_quote = min_length.as_ref().map(|min| {
+                        quote! {
+                            map.insert("minLength".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                        }
+                    });
+                    let max_quote = max_length.as_ref().map(|max| {
+                        quote! {
+                            map.insert("maxLength".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                        }
+                    });
+                    return quote! {
+                        {
+                            let mut map = serde_json::Map::new();
+                            map.insert("type".to_string(), serde_json::Value::String("string".to_string()));
+                            #description_quote
+                            #title_quote
+                            #format_quote
+                            #min_quote
+                            #max_quote
+                            #default_quote
+                            map
+                        }
+                    };
+                }
+                // Handle integer types
+                else if integer_types.iter().any(|t| ident == t) {
+                    let min_quote = minimum.as_ref().map(|min| {
+                        quote! {
+                            map.insert("minimum".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                        }
+                    });
+                    let max_quote = maximum.as_ref().map(|max| {
+                        quote! {
+                            map.insert("maximum".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                        }
+                    });
+                    return quote! {
+                        {
+                            let mut map = serde_json::Map::new();
+                            map.insert("type".to_string(), serde_json::Value::String("integer".to_string()));
+                            #description_quote
+                            #title_quote
+                            #min_quote
+                            #max_quote
+                            #default_quote
+                            map
+                        }
+                    };
+                }
+                // Handle float types
+                else if float_types.iter().any(|t| ident == t) {
+                    let min_quote = minimum.as_ref().map(|min| {
+                        quote! {
+                            map.insert("minimum".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                        }
+                    });
+                    let max_quote = maximum.as_ref().map(|max| {
+                        quote! {
+                            map.insert("maximum".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                        }
+                    });
+                    return quote! {
+                        {
+                            let mut map = serde_json::Map::new();
+                            map.insert("type".to_string(), serde_json::Value::String("number".to_string()));
+                            #description_quote
+                            #title_quote
+                            #min_quote
+                            #max_quote
+                            #default_quote
+                            map
+                        }
+                    };
+                }
+                // Handle bool
+                else if ident == "bool" {
+                    return quote! {
+                        {
+                            let mut map = serde_json::Map::new();
+                            map.insert("type".to_string(), serde_json::Value::String("boolean".to_string()));
+                            #description_quote
+                            #title_quote
+                            #default_quote
+                            map
+                        }
+                    };
+                }
+            } else if type_path.path.segments.len() == 2 && type_path.path.leading_colon.is_none() {
+                let segments: Vec<_> = type_path.path.segments.iter().collect();
+                let seg0 = &segments[0];
+                let seg1 = &segments[1];
+                if seg0.ident == "serde_json"
+                    && seg0.arguments.is_empty()
+                    && seg1.ident == "Number"
+                    && seg1.arguments.is_empty()
+                {
+                    let min_num_quote = minimum.as_ref().map(|min| {
+                                    quote! {
+                                        map.insert("minimum".to_string(), serde_json::Value::Number(serde_json::Number::from(#min)));
+                                    }
+                                });
+                    let max_num_quote = maximum.as_ref().map(|max| {
+                                    quote! {
+                                        map.insert("maximum".to_string(), serde_json::Value::Number(serde_json::Number::from(#max)));
+                                    }
+                                });
+                    return quote! {
+                        {
+                            let mut map = serde_json::Map::new();
+                            map.insert("type".to_string(), serde_json::Value::String("number".to_string()));
+                            #description_quote
+                            #title_quote
+                            #min_num_quote
+                            #max_num_quote
+                            #default_quote
+                            map
+                        }
+                    };
+                }
+            }
+            // Fallback for unknown types
+            quote! {
+                {
+                    let mut map = serde_json::Map::new();
+                    map.insert("type".to_string(), serde_json::Value::String("unknown".to_string()));
+                    #description_quote
+                    #title_quote
+                    #default_quote
+                    map
+                }
+            }
+        }
+        _ => quote! {
+            {
+                let mut map = serde_json::Map::new();
+                map.insert("type".to_string(), serde_json::Value::String("unknown".to_string()));
+                #description_quote
+                #title_quote
+                #default_quote
+                map
+            }
+        },
+    }
+}
+
+#[allow(unused)]
+pub fn has_derive(attrs: &[Attribute], trait_name: &str) -> bool {
+    attrs.iter().any(|attr| {
+        if attr.path().is_ident("derive") {
+            let parsed = attr.parse_args_with(Punctuated::<Path, token::Comma>::parse_terminated);
+            if let Ok(derive_paths) = parsed {
+                let derived = derive_paths.iter().any(|path| path.is_ident(trait_name));
+                return derived;
+            }
+        }
+        false
+    })
+}
+
+pub fn is_vec_string(ty: &Type) -> bool {
+    let Type::Path(TypePath { path, .. }) = ty else {
+        return false;
+    };
+
+    // Get last segment: e.g., `Vec`
+    let Some(seg) = path.segments.last() else {
+        return false;
+    };
+
+    // Must be `Vec`
+    if seg.ident != "Vec" {
+        return false;
+    }
+
+    // Must have angle-bracketed args: <String>
+    let PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return false;
+    };
+
+    // Must contain exactly one type param
+    if args.args.len() != 1 {
+        return false;
+    }
+
+    // Check that the argument is `String`
+    match args.args.first().unwrap() {
+        GenericArgument::Type(Type::Path(tp)) => tp.path.is_ident("String"),
+        _ => false,
+    }
+}
+
+pub fn renamed_field(attrs: &[Attribute]) -> Option<String> {
+    let mut renamed = None;
+
+    for attr in attrs {
+        if attr.path().is_ident("serde") {
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("rename") {
+                    if let Ok(lit) = meta.value() {
+                        if let Ok(syn::Lit::Str(lit_str)) = lit.parse() {
+                            renamed = Some(lit_str.value());
+                        }
+                    }
+                }
+                Ok(())
+            });
+        }
+    }
+
+    renamed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quote::quote;
+    use syn::parse_quote;
+
+    fn render(ts: proc_macro2::TokenStream) -> String {
+        ts.to_string().replace(char::is_whitespace, "")
+    }
+
+    #[test]
+    fn test_is_option() {
+        let ty: Type = parse_quote!(Option<String>);
+        assert!(is_option(&ty));
+
+        let ty: Type = parse_quote!(Vec<String>);
+        assert!(!is_option(&ty));
+    }
+
+    #[test]
+    fn test_is_vec() {
+        let ty: Type = parse_quote!(Vec<i32>);
+        assert!(is_vec(&ty));
+
+        let ty: Type = parse_quote!(Option<i32>);
+        assert!(!is_vec(&ty));
+    }
+
+    #[test]
+    fn test_inner_type() {
+        let ty: Type = parse_quote!(Option<String>);
+        let inner = inner_type(&ty);
+        assert!(inner.is_some());
+        let inner = inner.unwrap();
+        assert_eq!(quote!(#inner).to_string(), quote!(String).to_string());
+
+        let ty: Type = parse_quote!(Vec<i32>);
+        let inner = inner_type(&ty);
+        assert!(inner.is_some());
+        let inner = inner.unwrap();
+        assert_eq!(quote!(#inner).to_string(), quote!(i32).to_string());
+
+        let ty: Type = parse_quote!(i32);
+        assert!(inner_type(&ty).is_none());
+    }
+
+    #[test]
+    fn test_might_be_struct() {
+        let ty: Type = parse_quote!(MyStruct);
+        assert!(might_be_struct(&ty));
+
+        let ty: Type = parse_quote!(String);
+        assert!(!might_be_struct(&ty));
+    }
+
+    #[test]
+    fn test_type_to_json_schema_string() {
+        let ty: Type = parse_quote!(String);
+        let attrs: Vec<Attribute> = vec![];
+        let tokens = type_to_json_schema(&ty, &attrs);
+        let output = tokens.to_string();
+        assert!(output.contains("\"string\""));
+    }
+
+    #[test]
+    fn test_type_to_json_schema_option() {
+        let ty: Type = parse_quote!(Option<i32>);
+        let attrs: Vec<Attribute> = vec![];
+        let tokens = type_to_json_schema(&ty, &attrs);
+        let output = tokens.to_string();
+        assert!(output.contains("\"nullable\""));
+    }
+
+    #[test]
+    fn test_type_to_json_schema_vec() {
+        let ty: Type = parse_quote!(Vec<String>);
+        let attrs: Vec<Attribute> = vec![];
+        let tokens = type_to_json_schema(&ty, &attrs);
+        let output = tokens.to_string();
+        assert!(output.contains("\"array\""));
+    }
+
+    #[test]
+    fn test_has_derive() {
+        let attr: Attribute = parse_quote!(#[derive(Clone, Debug)]);
+        assert!(has_derive(&[attr.clone()], "Debug"));
+        assert!(!has_derive(&[attr], "Serialize"));
+    }
+
+    #[test]
+    fn test_renamed_field() {
+        let attr: Attribute = parse_quote!(#[serde(rename = "renamed")]);
+        assert_eq!(renamed_field(&[attr]), Some("renamed".to_string()));
+
+        let attr: Attribute = parse_quote!(#[serde(skip_serializing_if = "Option::is_none")]);
+        assert_eq!(renamed_field(&[attr]), None);
+    }
+
+    #[test]
+    fn test_get_doc_comment_single_line() {
+        let attrs: Vec<Attribute> = vec![parse_quote!(#[doc = "This is a test comment."])];
+        let result = super::doc_comment(&attrs);
+        assert_eq!(result, Some("This is a test comment.".to_string()));
+    }
+
+    #[test]
+    fn test_get_doc_comment_multi_line() {
+        let attrs: Vec<Attribute> = vec![
+            parse_quote!(#[doc = "Line one."]),
+            parse_quote!(#[doc = "Line two."]),
+            parse_quote!(#[doc = "Line three."]),
+        ];
+        let result = super::doc_comment(&attrs);
+        assert_eq!(
+            result,
+            Some("Line one.\nLine two.\nLine three.".to_string())
+        );
+    }
+
+    #[test]
+    fn test_get_doc_comment_no_doc() {
+        let attrs: Vec<Attribute> = vec![parse_quote!(#[allow(dead_code)])];
+        let result = super::doc_comment(&attrs);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_get_doc_comment_trim_whitespace() {
+        let attrs: Vec<Attribute> = vec![parse_quote!(#[doc = "  Trimmed line.  "])];
+        let result = super::doc_comment(&attrs);
+        assert_eq!(result, Some("Trimmed line.".to_string()));
+    }
+
+    #[test]
+    fn test_renamed_field_basic() {
+        let attrs = vec![parse_quote!(#[serde(rename = "new_name")])];
+        let result = renamed_field(&attrs);
+        assert_eq!(result, Some("new_name".to_string()));
+    }
+
+    #[test]
+    fn test_renamed_field_without_rename() {
+        let attrs = vec![parse_quote!(#[serde(default)])];
+        let result = renamed_field(&attrs);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_renamed_field_with_multiple_attrs() {
+        let attrs = vec![
+            parse_quote!(#[serde(default)]),
+            parse_quote!(#[serde(rename = "actual_name")]),
+        ];
+        let result = renamed_field(&attrs);
+        assert_eq!(result, Some("actual_name".to_string()));
+    }
+
+    #[test]
+    fn test_renamed_field_irrelevant_attribute() {
+        let attrs = vec![parse_quote!(#[some_other_attr(value = "irrelevant")])];
+        let result = renamed_field(&attrs);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_renamed_field_ignores_other_serde_keys() {
+        let attrs = vec![parse_quote!(#[serde(skip_serializing_if = "Option::is_none")])];
+        let result = renamed_field(&attrs);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_has_derive_positive() {
+        let attrs: Vec<Attribute> = vec![parse_quote!(#[derive(Debug, Clone)])];
+        assert!(has_derive(&attrs, "Debug"));
+        assert!(has_derive(&attrs, "Clone"));
+    }
+
+    #[test]
+    fn test_has_derive_negative() {
+        let attrs: Vec<Attribute> = vec![parse_quote!(#[derive(Serialize, Deserialize)])];
+        assert!(!has_derive(&attrs, "Debug"));
+    }
+
+    #[test]
+    fn test_has_derive_no_derive_attr() {
+        let attrs: Vec<Attribute> = vec![parse_quote!(#[allow(dead_code)])];
+        assert!(!has_derive(&attrs, "Debug"));
+    }
+
+    #[test]
+    fn test_has_derive_multiple_attrs() {
+        let attrs: Vec<Attribute> = vec![
+            parse_quote!(#[allow(unused)]),
+            parse_quote!(#[derive(PartialEq)]),
+            parse_quote!(#[derive(Eq)]),
+        ];
+        assert!(has_derive(&attrs, "PartialEq"));
+        assert!(has_derive(&attrs, "Eq"));
+        assert!(!has_derive(&attrs, "Clone"));
+    }
+
+    #[test]
+    fn test_has_derive_empty_attrs() {
+        let attrs: Vec<Attribute> = vec![];
+        assert!(!has_derive(&attrs, "Debug"));
+    }
+
+    #[test]
+    fn test_might_be_struct_with_custom_type() {
+        let ty: syn::Type = parse_quote!(MyStruct);
+        assert!(might_be_struct(&ty));
+    }
+
+    #[test]
+    fn test_might_be_struct_with_primitive_type() {
+        let primitives = [
+            "i32", "u64", "bool", "f32", "String", "Option", "Vec", "char", "str",
+        ];
+        for ty_str in &primitives {
+            let ty: syn::Type = syn::parse_str(ty_str).unwrap();
+            assert!(
+                !might_be_struct(&ty),
+                "Expected '{ty_str}' to be not a struct"
+            );
+        }
+    }
+
+    #[test]
+    fn test_might_be_struct_with_namespaced_type() {
+        let ty: syn::Type = parse_quote!(std::collections::HashMap<String, i32>);
+        assert!(!might_be_struct(&ty)); // segments.len() > 1
+    }
+
+    #[test]
+    fn test_might_be_struct_with_generic_arguments() {
+        let ty: syn::Type = parse_quote!(MyStruct<T>);
+        assert!(!might_be_struct(&ty)); // has type arguments
+    }
+
+    #[test]
+    fn test_might_be_struct_with_empty_type_path() {
+        let ty: syn::Type = parse_quote!(());
+        assert!(!might_be_struct(&ty));
+    }
+
+    #[test]
+    fn test_json_schema_string() {
+        let ty: syn::Type = parse_quote!(String);
+        let tokens = type_to_json_schema(&ty, &[]);
+        let output = render(tokens);
+        assert!(output
+            .contains("\"type\".to_string(),serde_json::Value::String(\"string\".to_string())"));
+    }
+
+    #[test]
+    fn test_json_schema_integer() {
+        let ty: syn::Type = parse_quote!(i32);
+        let tokens = type_to_json_schema(&ty, &[]);
+        let output = render(tokens);
+        assert!(output
+            .contains("\"type\".to_string(),serde_json::Value::String(\"integer\".to_string())"));
+    }
+
+    #[test]
+    fn test_json_schema_boolean() {
+        let ty: syn::Type = parse_quote!(bool);
+        let tokens = type_to_json_schema(&ty, &[]);
+        let output = render(tokens);
+        assert!(output
+            .contains("\"type\".to_string(),serde_json::Value::String(\"boolean\".to_string())"));
+    }
+
+    #[test]
+    fn test_json_schema_vec_of_string() {
+        let ty: syn::Type = parse_quote!(Vec<String>);
+        let tokens = type_to_json_schema(&ty, &[]);
+        let output = render(tokens);
+        assert!(output
+            .contains("\"type\".to_string(),serde_json::Value::String(\"array\".to_string())"));
+        assert!(output.contains("\"items\".to_string(),serde_json::Value::Object"));
+    }
+
+    #[test]
+    fn test_json_schema_option_of_number() {
+        let ty: syn::Type = parse_quote!(Option<u64>);
+        let tokens = type_to_json_schema(&ty, &[]);
+        let output = render(tokens);
+        assert!(output.contains("\"nullable\".to_string(),serde_json::Value::Bool(true)"));
+        assert!(output
+            .contains("\"type\".to_string(),serde_json::Value::String(\"integer\".to_string())"));
+    }
+
+    #[test]
+    fn test_json_schema_custom_struct() {
+        let ty: syn::Type = parse_quote!(MyStruct);
+        let tokens = type_to_json_schema(&ty, &[]);
+        let output = render(tokens);
+        assert!(output.contains("MyStruct::json_schema()"));
+    }
+
+    #[test]
+    fn test_json_schema_with_doc_comment() {
+        let ty: syn::Type = parse_quote!(String);
+        let attrs: Vec<Attribute> = vec![parse_quote!(#[doc = "A user name."])];
+        let tokens = type_to_json_schema(&ty, &attrs);
+        let output = render(tokens);
+        assert!(output.contains(
+            "\"description\".to_string(),serde_json::Value::String(\"Ausername.\".to_string())"
+        ));
+    }
+
+    #[test]
+    fn test_json_schema_fallback_unknown() {
+        let ty: syn::Type = parse_quote!((i32, i32));
+        let tokens = type_to_json_schema(&ty, &[]);
+        let output = render(tokens);
+        assert!(output
+            .contains("\"type\".to_string(),serde_json::Value::String(\"unknown\".to_string())"));
+    }
+}

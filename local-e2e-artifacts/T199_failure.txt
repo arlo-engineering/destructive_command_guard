@@ -1,0 +1,7 @@
+Test ID: T199
+Description: Should BLOCK with pack=cicd.github_actions: gh variable delete (github actions pack enabled)
+Expected: JSON with permissionDecision: deny
+Actual: <empty>
+
+--- Raw Output ---
+<empty>

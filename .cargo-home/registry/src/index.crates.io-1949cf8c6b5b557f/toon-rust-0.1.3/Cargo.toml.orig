@@ -1,0 +1,31 @@
+[package]
+name = "toon-rust"
+version = "0.1.3"
+edition = "2021"
+authors = ["Prabhat Kumar <itsprabxxx@gmail.com>"]
+description = "Token-Oriented Object Notation (TOON) - JSON for LLM prompts at half the tokens. Rust implementation."
+license = "MIT"
+repository = "https://github.com/dedsecrattle/toon-rust"
+documentation = "https://docs.rs/toon-rust"
+homepage = "https://github.com/dedsecrattle/toon-rust"
+keywords = ["toon", "serialization", "llm", "token"]
+categories = ["encoding", "parser-implementations"]
+readme = "README.md"
+
+[package.metadata.docs.rs]
+all-features = true
+rustc-args = ["--cfg", "docsrs"]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = "1.0"
+thiserror = "1.0"
+
+[features]
+default = ["serde", "std"]
+std = []
+serde = ["dep:serde"]
+
+[dev-dependencies]
+criterion = "0.5"

@@ -1,0 +1,93 @@
+[workspace]
+members = ["derive", "compatibility"]
+
+[package]
+name = "bincode-next"
+version = "2.1.0" # remember to update html_root_url and bincode_derive
+authors = [
+    "Xinyu Yang <pana.yang@hotmail.com>",
+    "Ty Overby <ty@pre-alpha.com>",
+    "Zoey Riordan <zoey@dos.cafe>",
+    "Victor Koenders <bincode@trangar.com>",
+    "The bincode-next & bincode developers",
+]
+exclude = ["logo.svg", "examples/*", ".gitignore", ".github/"]
+rust-version = "1.85.0"
+
+publish = true
+
+repository = "https://github.com/Apich-Organization/bincode"
+documentation = "https://docs.rs/bincode_next"
+readme = "./README.md"
+categories = ["encoding", "network-programming"]
+keywords = ["binary", "encode", "decode", "serialize", "deserialize"]
+
+license = "MIT or Apache-2.0"
+description = "A binary serialization / deserialization strategy for transforming structs into bytes and vice versa!"
+
+edition = "2024"
+
+[features]
+default = ["std", "derive"]
+std = ["alloc", "serde?/std"]
+alloc = ["serde?/alloc"]
+derive = ["bincode_derive-next"]
+
+[dependencies]
+bincode_derive-next = { path = "derive", version = "2.1.0", optional = true }
+serde = { version = "1.0", default-features = false, optional = true }
+unty = { version = "0.1.0", package = "unty-next" }
+
+# Used for tests
+[dev-dependencies]
+ouroboros = "0.18.3"
+serde_derive = "1.0"
+serde_json = { version = "1.0", default-features = false }
+tempfile = "3.2"
+criterion = "0.8"
+rand = "0.10"
+uuid = { version = "1.1", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+glam = { version = "0.32", features = ["serde"] }
+bincode_1 = { version = "1.3", package = "bincode" }
+serde = { version = "1.0", features = ["derive"] }
+bumpalo = { version = "3.16.0", features = ["collections"] }
+
+[[bench]]
+name = "varint"
+harness = false
+
+[[bench]]
+name = "inline"
+harness = false
+
+[[bench]]
+name = "string"
+harness = false
+
+[profile.bench]
+codegen-units = 1
+debug = 1
+lto = true
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+opt-level = 3
+strip = true
+
+[profile.dev]
+lto = false
+opt-level = 0
+debug = true
+
+[lints.clippy]
+empty-line-after-doc-comments = "allow"
+
+[lib]
+crate-type = ["cdylib", "rlib", "staticlib"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

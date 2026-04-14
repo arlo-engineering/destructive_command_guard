@@ -1,0 +1,7 @@
+Test ID: T200
+Description: Should BLOCK with pack=cicd.github_actions: gh workflow disable (github actions pack enabled)
+Expected: JSON with permissionDecision: deny
+Actual: <empty>
+
+--- Raw Output ---
+<empty>

@@ -1,0 +1,7 @@
+Test ID: T236
+Description: Should BLOCK with pack=dns.generic: nsupdate -l local update (generic dns pack enabled)
+Expected: JSON with permissionDecision: deny
+Actual: <empty>
+
+--- Raw Output ---
+<empty>

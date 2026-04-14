@@ -1,0 +1,37 @@
+[package]
+name = "rust-mcp-macros"
+version = "0.8.1"
+authors = ["Ali Hashemi"]
+categories = ["data-structures", "parser-implementations", "parsing"]
+description = "A procedural macro that derives the MCPToolSchema implementation for structs or enums, generating a tool_input_schema function used with rust_mcp_schema::Tool."
+repository = "https://github.com/rust-mcp-stack/rust-mcp-sdk"
+documentation = "https://docs.rs/rust-mcp-macros"
+keywords = ["rust-mcp-stack", "model", "context", "protocol", "macros"]
+license = "MIT"
+edition = "2021"
+rust-version = { workspace = true }
+exclude = ["assets/"]
+
+[package.metadata.docs]
+description = "A procedural macro, part of the rust-mcp-sdk ecosystem, that derives the MCPToolSchema implementation for structs or enums, generating a tool_input_schema function used with rust_mcp_schema::Tool."
+
+[dependencies]
+serde_json = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+syn = {version="2.0", features = ["full", "extra-traits","parsing"]}
+quote = "1.0"
+proc-macro2 = "1.0"
+
+[dev-dependencies]
+rust-mcp-schema = { workspace = true , features=["latest","schema_utils"]}
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[features]
+# defalt features
+default = []
+sdk = []

@@ -1,0 +1,7 @@
+Test ID: T237
+Description: Should BLOCK with pack=dns.generic: dig axfr zone transfer (generic dns pack enabled)
+Expected: JSON with permissionDecision: deny
+Actual: <empty>
+
+--- Raw Output ---
+<empty>
