@@ -131,6 +131,7 @@ impl DenialBox {
         let pattern_lines =
             format_pattern_lines(&self.pattern_id, theme.severity_label(self.severity));
         let width = terminal_width().saturating_sub(8).max(40) as usize;
+        let highlighted = format_highlighted_command(&self.command, &self.span, false, width);
 
         // Build content as a Vec of lines
         let mut lines = Vec::new();
@@ -140,9 +141,12 @@ impl DenialBox {
         lines.push(format!("[{severity_markup}]🛑 COMMAND BLOCKED[/]"));
         lines.push(String::new());
 
-        // 2. Command with highlighting
-        // Note: We use manual highlighting for now, but rich_rust Syntax could be used later
-        lines.push(format!("[dim]Command:[/]  [bold]{}[/]", self.command));
+        // 2. Command with caret highlighting to match plain/hook expectations.
+        lines.push(format!("[dim]Command:[/]  {}", highlighted.command_line));
+        lines.push(format!("           {}", highlighted.caret_line));
+        if let Some(label) = &highlighted.label_line {
+            lines.push(format!("           {label}"));
+        }
 
         // 3. Explanation
         if let Some(explanation) = &self.explanation {

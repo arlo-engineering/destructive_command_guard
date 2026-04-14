@@ -6,7 +6,7 @@
 
 <div align="center">
 
-[![Coverage](https://img.shields.io/codecov/c/github/Dicklesworthstone/destructive_command_guard?label=coverage)](https://codecov.io/gh/Dicklesworthstone/destructive_command_guard)
+[![Coverage](https://img.shields.io/codecov/c/github/arlo-engineering/destructive_command_guard?label=coverage)](https://codecov.io/gh/arlo-engineering/destructive_command_guard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 </div>
@@ -19,7 +19,7 @@ A high-performance hook for AI coding agents that blocks destructive commands be
 <h3>Quick Install</h3>
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --easy-mode
+curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --easy-mode
 ```
 
 <p><em>Works on Linux, macOS, and Windows (WSL). Auto-detects your platform and downloads the right binary.</em></p>
@@ -45,6 +45,8 @@ curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_comm
 | **Scan Mode for CI** | Pre-commit hooks and CI integration to catch dangerous commands in code review |
 | **Fail-Open Design** | Never blocks your workflow due to timeouts or parse errors |
 | **Explain Mode** | `dcg explain "command"` shows exactly why something is blocked |
+
+The repository also includes a ready-to-use PR scanning workflow in `.github/workflows/scan.yml` for catching destructive commands during review.
 
 ### Quick Example
 
@@ -627,7 +629,7 @@ To prevent any single command from blocking indefinitely, dcg enforces an absolu
 The easiest way to install is using the install script, which downloads a prebuilt binary for your platform:
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --easy-mode
+curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --easy-mode
 ```
 
 Easy mode auto-detects your platform, downloads the right binary, verifies SHA256 checksums, configures all supported AI agent hooks (Claude Code, Gemini CLI, Copilot CLI, Aider, Codex CLI), and updates your PATH.
@@ -637,31 +639,31 @@ Easy mode auto-detects your platform, downloads the right binary, verifies SHA25
 Interactive mode (prompts for each step):
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash
+curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | bash
 ```
 
 Install specific version:
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --version v0.1.0
+curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --version v0.1.0
 ```
 
 Install to /usr/local/bin (system-wide, requires sudo):
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | sudo bash -s -- --system
+curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | sudo bash -s -- --system
 ```
 
 Build from source instead of downloading binary:
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --from-source
+curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --from-source
 ```
 
 Download/install only (skip agent hook configuration):
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --no-configure
+curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | bash -s -- --no-configure
 ```
 
 > **Note:** If you have [gum](https://github.com/charmbracelet/gum) installed, the installer will use it for fancy terminal formatting.
@@ -730,7 +732,7 @@ Prebuilt binaries are available for:
 - macOS Apple Silicon (`aarch64-apple-darwin`)
 - Windows (`x86_64-pc-windows-msvc`)
 
-Download from [GitHub Releases](https://github.com/Dicklesworthstone/destructive_command_guard/releases) and verify the SHA256 checksum.
+Download from [GitHub Releases](https://github.com/arlo-engineering/destructive_command_guard/releases) and verify the SHA256 checksum.
 If you have cosign installed, each release also includes a Sigstore bundle (`.sigstore.json`) so you can verify provenance with `cosign verify-blob`.
 
 ## Uninstalling
@@ -738,7 +740,7 @@ If you have cosign installed, each release also includes a Sigstore bundle (`.si
 Remove dcg and all its hooks from AI agents:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/uninstall.sh | bash
 ```
 
 The uninstaller:
@@ -1281,7 +1283,7 @@ jobs:
 
       - name: Install dcg
         run: |
-          curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh" | bash
+          curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh" | bash
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Scan changed files
@@ -1297,7 +1299,7 @@ jobs:
 scan:
   stage: test
   script:
-    - curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh" | bash
+    - curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh" | bash
     - ~/.local/bin/dcg scan --git-diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..HEAD --fail-on error
   rules:
     - if: $CI_MERGE_REQUEST_ID

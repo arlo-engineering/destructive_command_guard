@@ -12,7 +12,7 @@
 #   - fail-on: error (default), warning, or none
 #   - redact: none, quoted, or aggressive (for sensitive commands)
 #
-# For more information: https://github.com/Dicklesworthstone/destructive_command_guard
+# For more information: https://github.com/arlo-engineering/destructive_command_guard
 
 name: scan
 
@@ -70,6 +70,10 @@ jobs:
         run: |
           set +e  # Don't exit on non-zero
 
+          # This repository intentionally keeps destructive command examples in
+          # installer cleanup flows and end-to-end detection fixtures. Exclude
+          # those known-noisy scripts so the PR scan stays focused on accidental
+          # destructive commands in ordinary project code.
           # Run scan and capture output
           # Note: stdout goes to JSON file, stderr logged separately to avoid corrupting JSON
           ./target/release/dcg scan \
@@ -78,6 +82,9 @@ jobs:
             --fail-on error \
             --max-findings 50 \
             --truncate 200 \
+            --exclude install.sh \
+            --exclude uninstall.sh \
+            --exclude scripts/e2e_test.sh \
             > scan-results.json 2>scan-stderr.log
 
           EXIT_CODE=$?

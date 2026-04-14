@@ -8,8 +8,8 @@ authors = [
     "Dowwie <dowwie@gmail.com>"
 ]
 description = "A Claude Code hook that blocks destructive commands before they execute"
-repository = "https://github.com/Dicklesworthstone/destructive_command_guard"
-homepage = "https://github.com/Dicklesworthstone/destructive_command_guard"
+repository = "https://github.com/arlo-engineering/destructive_command_guard"
+homepage = "https://github.com/arlo-engineering/destructive_command_guard"
 license = "MIT"
 keywords = ["destructive", "safety", "claude", "hook", "guard"]
 categories = ["command-line-utilities", "development-tools"]

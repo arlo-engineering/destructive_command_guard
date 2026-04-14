@@ -3,10 +3,10 @@
 # dcg installer
 #
 # One-liner install (with cache buster):
-#   curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh?$(date +%s)" | bash
+#   curl -fsSL "https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh?$(date +%s)" | bash
 #
 # Or without cache buster:
-#   curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/arlo-engineering/destructive_command_guard/main/install.sh | bash
 #
 # Options:
 #   --version vX.Y.Z   Install specific version (default: latest)
@@ -26,7 +26,7 @@ umask 022
 shopt -s lastpipe 2>/dev/null || true
 
 VERSION="${VERSION:-}"
-OWNER="${OWNER:-Dicklesworthstone}"
+OWNER="${OWNER:-arlo-engineering}"
 REPO="${REPO:-destructive_command_guard}"
 DEST_DEFAULT="$HOME/.local/bin"
 DEST="${DEST:-$DEST_DEFAULT}"
@@ -41,7 +41,6 @@ COSIGN_IDENTITY_RE="${COSIGN_IDENTITY_RE:-^https://github.com/${OWNER}/${REPO}/.
 COSIGN_OIDC_ISSUER="${COSIGN_OIDC_ISSUER:-https://token.actions.githubusercontent.com}"
 ARTIFACT_URL="${ARTIFACT_URL:-}"
 LOCK_FILE="/tmp/dcg-install.lock"
-SYSTEM=0
 NO_GUM=0
 NO_CONFIGURE=0
 NO_CHECKSUM=0
@@ -443,7 +442,7 @@ resolve_version() {
 }
 
 detect_platform() {
-  OS=$(uname -s | tr 'A-Z' 'a-z')
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
   ARCH=$(uname -m)
   case "$ARCH" in
     x86_64|amd64) ARCH="x86_64" ;;
@@ -767,7 +766,8 @@ verify_sigstore_bundle() {
     bundle_url="${artifact_url}.sigstore.json"
   fi
 
-  local bundle_file="$TMP/$(basename "$bundle_url")"
+  local bundle_file
+  bundle_file="$TMP/$(basename "$bundle_url")"
   info "Fetching sigstore bundle from ${bundle_url}"
   if ! curl -fsSL "$bundle_url" -o "$bundle_file"; then
     warn "Sigstore bundle not found; skipping signature verification"
@@ -812,7 +812,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --version) VERSION="$2"; shift 2;;
     --dest) DEST="$2"; shift 2;;
-    --system) SYSTEM=1; DEST="/usr/local/bin"; shift;;
+    --system) DEST="/usr/local/bin"; shift;;
     --easy-mode) EASY=1; shift;;
     --verify) VERIFY=1; shift;;
     --artifact-url) ARTIFACT_URL="$2"; shift 2;;
@@ -1053,12 +1053,14 @@ show_upgrade_banner() {
 
 remove_predecessor() {
   local loc="$1"
-  local dir=$(dirname "$loc")
+  local dir
+  dir=$(dirname "$loc")
 
   info "Removing predecessor hook: $loc"
 
   # Create backup
-  local backup="${loc}.bak.$(date +%Y%m%d%H%M%S)"
+  local backup
+  backup="${loc}.bak.$(date +%Y%m%d%H%M%S)"
   cp "$loc" "$backup" 2>/dev/null || true
 
   # Remove the script
@@ -1085,7 +1087,6 @@ CURSOR_SETTINGS_LINUX="$HOME/.config/Cursor/User/settings.json"
 CURSOR_HOOKS_JSON="$HOME/.cursor/hooks.json"
 CURSOR_HOOK_DIR="$HOME/.cursor/hooks"
 CURSOR_HOOK_SCRIPT="$CURSOR_HOOK_DIR/dcg-pre-shell.py"
-AUTO_CONFIGURED=0
 
 # Detailed tracking for what was configured
 CLAUDE_STATUS=""  # "created"|"merged"|"already"|"failed"
@@ -1108,7 +1109,8 @@ configure_claude_code() {
   local cleanup_predecessor="$2"
   # Default to cleaning up predecessor if not specified or empty
   [ -z "$cleanup_predecessor" ] && cleanup_predecessor=1
-  local settings_dir=$(dirname "$settings_file")
+  local settings_dir
+  settings_dir=$(dirname "$settings_file")
 
   # Always create the config directory if it doesn't exist
   if [ ! -d "$settings_dir" ]; then
@@ -1123,7 +1125,6 @@ configure_claude_code() {
         : # Fall through to cleanup logic below
       else
         CLAUDE_STATUS="already"
-        AUTO_CONFIGURED=1
         return 0
       fi
     fi
@@ -1133,7 +1134,7 @@ configure_claude_code() {
     cp "$settings_file" "$CLAUDE_BACKUP"
 
     if command -v python3 >/dev/null 2>&1; then
-      python3 - "$settings_file" "$DEST/dcg" "$cleanup_predecessor" <<'PYEOF'
+      if python3 - "$settings_file" "$DEST/dcg" "$cleanup_predecessor" <<'PYEOF'
 import json
 import sys
 
@@ -1203,9 +1204,8 @@ with open(settings_file, 'w') as f:
 if predecessor_removed:
     print("PREDECESSOR_CLEANED", file=sys.stderr)
 PYEOF
-      if [ $? -eq 0 ]; then
+      then
         CLAUDE_STATUS="merged"
-        AUTO_CONFIGURED=1
       else
         mv "$CLAUDE_BACKUP" "$settings_file" 2>/dev/null || true
         CLAUDE_STATUS="failed"
@@ -1238,13 +1238,13 @@ PYEOF
 }
 EOFSET
     CLAUDE_STATUS="created"
-    AUTO_CONFIGURED=1
   fi
 }
 
 configure_gemini() {
   local settings_file="$1"
-  local settings_dir=$(dirname "$settings_file")
+  local settings_dir
+  settings_dir=$(dirname "$settings_file")
 
   # Check if Gemini CLI appears to be installed (has config dir or gemini command exists)
   if [ ! -d "$settings_dir" ] && ! command -v gemini >/dev/null 2>&1; then
@@ -1261,7 +1261,6 @@ configure_gemini() {
   if [ -f "$settings_file" ]; then
     if grep -q '"command".*dcg' "$settings_file" 2>/dev/null; then
       GEMINI_STATUS="already"
-      AUTO_CONFIGURED=1
       return 0
     fi
 
@@ -1269,7 +1268,7 @@ configure_gemini() {
     cp "$settings_file" "$GEMINI_BACKUP"
 
     if command -v python3 >/dev/null 2>&1; then
-      python3 - "$settings_file" "$DEST/dcg" <<'PYEOF'
+      if python3 - "$settings_file" "$DEST/dcg" <<'PYEOF'
 import json
 import sys
 
@@ -1312,9 +1311,8 @@ else:
 with open(settings_file, 'w') as f:
     json.dump(settings, f, indent=2)
 PYEOF
-      if [ $? -eq 0 ]; then
+      then
         GEMINI_STATUS="merged"
-        AUTO_CONFIGURED=1
       else
         mv "$GEMINI_BACKUP" "$settings_file" 2>/dev/null || true
         GEMINI_STATUS="failed"
@@ -1349,7 +1347,6 @@ PYEOF
 }
 EOFSET
     GEMINI_STATUS="created"
-    AUTO_CONFIGURED=1
   fi
 }
 
@@ -1376,7 +1373,6 @@ configure_aider() {
     # Check if git-commit-verify is already set to true
     if grep -qE '^\s*git-commit-verify:\s*true' "$settings_file" 2>/dev/null; then
       AIDER_STATUS="already"
-      AUTO_CONFIGURED=1
       return 0
     fi
 
@@ -1389,7 +1385,6 @@ configure_aider() {
       if command -v sed >/dev/null 2>&1; then
         sed -i.tmp 's/^\(\s*git-commit-verify:\s*\).*/\1true/' "$settings_file" && rm -f "${settings_file}.tmp"
         AIDER_STATUS="merged"
-        AUTO_CONFIGURED=1
       else
         mv "$AIDER_BACKUP" "$settings_file" 2>/dev/null || true
         AIDER_STATUS="failed"
@@ -1401,11 +1396,12 @@ configure_aider() {
       cp "$settings_file" "$AIDER_BACKUP"
 
       # Append the setting
-      echo "" >> "$settings_file"
-      echo "# Added by dcg installer - enables git hooks so dcg pre-commit can run" >> "$settings_file"
-      echo "git-commit-verify: true" >> "$settings_file"
+      {
+        echo ""
+        echo "# Added by dcg installer - enables git hooks so dcg pre-commit can run"
+        echo "git-commit-verify: true"
+      } >> "$settings_file"
       AIDER_STATUS="merged"
-      AUTO_CONFIGURED=1
     fi
   else
     # Create new settings file
@@ -1422,7 +1418,6 @@ configure_aider() {
 git-commit-verify: true
 EOFAIDER
     AIDER_STATUS="created"
-    AUTO_CONFIGURED=1
   fi
 }
 
@@ -1508,7 +1503,6 @@ configure_codex() {
     # Check if dcg is already configured
     if grep -q '"command".*dcg' "$settings_file" 2>/dev/null; then
       CODEX_STATUS="already"
-      AUTO_CONFIGURED=1
       return 0
     fi
 
@@ -1517,7 +1511,7 @@ configure_codex() {
     cp "$settings_file" "$CODEX_BACKUP"
 
     if command -v python3 >/dev/null 2>&1; then
-      python3 - "$settings_file" "$DEST/dcg" <<'PYEOF'
+      if python3 - "$settings_file" "$DEST/dcg" <<'PYEOF'
 import json
 import sys
 
@@ -1574,9 +1568,8 @@ config['hooks']['PreToolUse'] = new_pre_tool_use
 with open(hooks_file, 'w') as f:
     json.dump(config, f, indent=2)
 PYEOF
-      if [ $? -eq 0 ]; then
+      then
         CODEX_STATUS="merged"
-        AUTO_CONFIGURED=1
       else
         mv "$CODEX_BACKUP" "$settings_file" 2>/dev/null || true
         CODEX_STATUS="failed"
@@ -1609,7 +1602,6 @@ PYEOF
 }
 EOFSET
     CODEX_STATUS="created"
-    AUTO_CONFIGURED=1
   fi
 }
 
@@ -1658,7 +1650,7 @@ configure_copilot() {
 
     if command -v python3 >/dev/null 2>&1; then
       local py_result
-      py_result=$(python3 - "$hook_file" "$DEST/dcg" <<'PYEOF'
+      if py_result=$(python3 - "$hook_file" "$DEST/dcg" <<'PYEOF'
 import json
 import sys
 
@@ -1731,8 +1723,7 @@ if found:
 else:
     print("ADDED")
 PYEOF
-)
-      if [ $? -eq 0 ]; then
+); then
         case "$py_result" in
           UNCHANGED)
             COPILOT_STATUS="already"
@@ -1741,11 +1732,9 @@ PYEOF
             ;;
           UPDATED|ADDED)
             COPILOT_STATUS="merged"
-            AUTO_CONFIGURED=1
             ;;
           *)
             COPILOT_STATUS="merged"
-            AUTO_CONFIGURED=1
             ;;
         esac
       else
@@ -1780,7 +1769,6 @@ PYEOF
 }
 EOFSET
     COPILOT_STATUS="created"
-    AUTO_CONFIGURED=1
   fi
 }
 
@@ -1922,14 +1910,13 @@ PYEOF
   if [ -f "$settings_file" ]; then
     if grep -q "$hook_script" "$settings_file" 2>/dev/null; then
       CURSOR_STATUS="already"
-      AUTO_CONFIGURED=1
       return 0
     fi
 
     CURSOR_BACKUP="${settings_file}.bak.$(date +%Y%m%d%H%M%S)"
     cp "$settings_file" "$CURSOR_BACKUP"
 
-    python3 - "$settings_file" "$hook_script" <<'PYEOF'
+    if python3 - "$settings_file" "$hook_script" <<'PYEOF'
 import json
 import sys
 
@@ -1965,9 +1952,8 @@ if not any(is_match(entry) for entry in entries):
 with open(settings_file, "w") as f:
     json.dump(settings, f, indent=2)
 PYEOF
-    if [ $? -eq 0 ]; then
+    then
       CURSOR_STATUS="merged"
-      AUTO_CONFIGURED=1
     else
       mv "$CURSOR_BACKUP" "$settings_file" 2>/dev/null || true
       CURSOR_STATUS="failed"
@@ -1988,7 +1974,6 @@ PYEOF
 }
 EOFSET
     CURSOR_STATUS="created"
-    AUTO_CONFIGURED=1
   fi
 }
 

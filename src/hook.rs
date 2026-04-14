@@ -287,6 +287,24 @@ pub enum HookReadError {
     Json(serde_json::Error),
 }
 
+fn read_hook_input_from<R: Read + ?Sized>(
+    reader: &mut R,
+    max_bytes: usize,
+) -> Result<HookInput, HookReadError> {
+    let mut input = String::with_capacity(256);
+    // Read up to limit + 1 to detect overflow
+    let mut limited = reader.take(max_bytes as u64 + 1);
+    limited
+        .read_to_string(&mut input)
+        .map_err(HookReadError::Io)?;
+
+    if input.len() > max_bytes {
+        return Err(HookReadError::InputTooLarge(input.len()));
+    }
+
+    serde_json::from_str(&input).map_err(HookReadError::Json)
+}
+
 /// Read and parse hook input from stdin.
 ///
 /// # Errors
@@ -295,21 +313,9 @@ pub enum HookReadError {
 /// if the input is not valid hook JSON, or [`HookReadError::InputTooLarge`] if
 /// the input exceeds `max_bytes`.
 pub fn read_hook_input(max_bytes: usize) -> Result<HookInput, HookReadError> {
-    let mut input = String::with_capacity(256);
-    {
-        let stdin = io::stdin();
-        // Read up to limit + 1 to detect overflow
-        let mut handle = stdin.lock().take(max_bytes as u64 + 1);
-        handle
-            .read_to_string(&mut input)
-            .map_err(HookReadError::Io)?;
-    }
-
-    if input.len() > max_bytes {
-        return Err(HookReadError::InputTooLarge(input.len()));
-    }
-
-    serde_json::from_str(&input).map_err(HookReadError::Json)
+    let stdin = io::stdin();
+    let mut lock = stdin.lock();
+    read_hook_input_from(&mut *lock, max_bytes)
 }
 
 /// Detect which hook protocol should be used for output formatting.
@@ -611,7 +617,17 @@ pub fn print_colorful_warning(
 
     // Create span for highlighting
     let span = matched_span
-        .map(|s| HighlightSpan::new(s.start, s.end))
+        .map(|s| {
+            command
+                .get(s.start..s.end)
+                .filter(|matched| !matched.is_empty())
+                .map_or_else(
+                    || HighlightSpan::new(s.start, s.end),
+                    |matched| {
+                        HighlightSpan::with_label(s.start, s.end, format!("Matched: {matched}"))
+                    },
+                )
+        })
         .unwrap_or_else(|| HighlightSpan::new(0, 0)); // Fallback
 
     let suggestions_enabled = crate::output::suggestions_enabled();
@@ -681,7 +697,7 @@ pub fn print_colorful_warning(
     eprintln!();
     eprintln!("{footer_style}False positive? File an issue:{reset}");
     eprintln!(
-        "{footer_style}https://github.com/Dicklesworthstone/destructive_command_guard/issues/new?template=false_positive.yml{reset}"
+        "{footer_style}https://github.com/arlo-engineering/destructive_command_guard/issues/new?template=false_positive.yml{reset}"
     );
     eprintln!();
 }
@@ -1108,7 +1124,11 @@ fn chrono_lite_timestamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::evaluator::MatchSpan;
+    use crate::packs::{PatternSuggestion, Severity};
+    use std::io::Cursor;
     use std::sync::Mutex;
+    use std::time::Duration;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
@@ -1500,5 +1520,242 @@ mod tests {
         let json = r"{}";
         let input: HookInput = serde_json::from_str(json).unwrap();
         assert_eq!(detect_protocol(&input), HookProtocol::ClaudeCompatible);
+    }
+
+    #[test]
+    fn test_read_hook_input_from_accepts_valid_json() {
+        let payload = r#"{"tool_name":"Bash","tool_input":{"command":"git status"}}"#;
+        let mut cur = Cursor::new(payload);
+        let input = super::read_hook_input_from(&mut cur, 4096).unwrap();
+        assert_eq!(extract_command(&input), Some("git status".to_string()));
+    }
+
+    #[test]
+    fn test_read_hook_input_from_rejects_oversized_input() {
+        let payload = "a".repeat(100);
+        let mut cur = Cursor::new(payload);
+        let err = super::read_hook_input_from(&mut cur, 50).unwrap_err();
+        assert!(matches!(err, HookReadError::InputTooLarge(n) if n > 50));
+    }
+
+    #[test]
+    fn test_read_hook_input_from_rejects_invalid_json() {
+        let mut cur = Cursor::new("{not json");
+        let err = super::read_hook_input_from(&mut cur, 256).unwrap_err();
+        assert!(matches!(err, HookReadError::Json(_)));
+    }
+
+    #[test]
+    fn test_format_denial_message_fallbacks_without_explanation() {
+        let with_rule = format_denial_message(
+            "git reset --hard",
+            "blocked",
+            None,
+            Some("core.git"),
+            Some("reset-hard"),
+        );
+        assert!(with_rule.contains("Matched destructive pattern core.git:reset-hard"));
+
+        let pack_only = format_denial_message("rm -rf /tmp/x", "blocked", None, Some("core.fs"), None);
+        assert!(pack_only.contains("Pack: core.fs"));
+
+        let bare = format_denial_message("danger", "blocked", None, None, None);
+        assert!(bare.contains("Matched a destructive pattern."));
+    }
+
+    #[test]
+    fn test_format_denial_message_multiline_explanation_and_escaped_quotes() {
+        let msg = format_denial_message(
+            "echo \"hi\"",
+            "nope",
+            Some("line one\nline two"),
+            Some("p"),
+            Some("pat"),
+        );
+        assert!(msg.contains("Explanation: line one"));
+        assert!(msg.contains("line two"));
+        assert!(msg.contains("Tip: dcg explain \"echo \\\"hi\\\"\""));
+    }
+
+    #[test]
+    fn test_tool_args_object_and_opaque_string() {
+        let json = r#"{"event":"e","toolName":"bash","toolArgs":{"command":"ls"}}"#;
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(extract_command(&input), Some("ls".to_string()));
+
+        let json = r#"{"event":"e","toolName":"bash","toolArgs":"not-json-but-cmd"}"#;
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            extract_command(&input),
+            Some("not-json-but-cmd".to_string())
+        );
+    }
+
+    #[test]
+    fn test_detect_protocol_claude_env_without_bash_tool_name() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _guard = EnvVarGuard::set("CLAUDE_CODE", "1");
+        let json = r#"{"tool_name":"Read","tool_input":{"command":"x"}}"#;
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(detect_protocol(&input), HookProtocol::ClaudeCompatible);
+    }
+
+    #[test]
+    fn test_detect_protocol_gemini_weak_signal_before_tool_with_envelope() {
+        let json = r#"{
+            "session_id":"s",
+            "hook_event_name":"BeforeTool",
+            "tool_name":"Read",
+            "tool_input":{"command":"git status"}
+        }"#;
+        let input: HookInput = serde_json::from_str(json).unwrap();
+        assert_eq!(detect_protocol(&input), HookProtocol::Gemini);
+    }
+
+    #[test]
+    fn test_configure_colors_respects_no_color() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let _no_color = EnvVarGuard::set("NO_COLOR", "1");
+        configure_colors();
+    }
+
+    #[test]
+    fn test_log_blocked_command_and_budget_skip_append() {
+        let dir = tempfile::tempdir().unwrap();
+        let log_path = dir.path().join("block.log");
+        let log_str = log_path.to_str().unwrap();
+        log_blocked_command(log_str, "git reset --hard", "destructive", Some("core.git")).unwrap();
+        log_budget_skip(
+            log_str,
+            "slow",
+            "match",
+            Duration::from_millis(12),
+            Duration::from_millis(10),
+        )
+        .unwrap();
+        let contents = std::fs::read_to_string(&log_path).unwrap();
+        assert!(contents.contains("[core.git]"));
+        assert!(contents.contains("git reset --hard"));
+        assert!(contents.contains("evaluation skipped due to budget"));
+    }
+
+    #[test]
+    fn test_copilot_deny_output_serializes_remediation() {
+        let output = CopilotHookOutput {
+            continue_execution: false,
+            stop_reason: Cow::Borrowed("BLOCKED by dcg: x"),
+            permission_decision: "deny",
+            permission_decision_reason: Cow::Borrowed("msg"),
+            allow_once_code: Some("abc12".to_string()),
+            allow_once_full_hash: Some("sha256:dead".to_string()),
+            rule_id: Some("core.git:reset-hard".to_string()),
+            pack_id: Some("core.git".to_string()),
+            severity: Some(Severity::Critical),
+            confidence: Some(0.9),
+            remediation: Some(Remediation {
+                safe_alternative: Some("git stash".to_string()),
+                explanation: "because".to_string(),
+                allow_once_command: "dcg allow-once abc12".to_string(),
+            }),
+        };
+        let v = serde_json::to_value(&output).unwrap();
+        assert_eq!(v["continue"], false);
+        assert_eq!(v["permissionDecision"], "deny");
+        assert_eq!(v["severity"], "critical");
+        assert!(v.get("remediation").is_some());
+    }
+
+    #[test]
+    fn test_print_colorful_warning_covers_suggestions_and_span() {
+        let span = MatchSpan {
+            start: 4,
+            end: 8,
+        };
+        let sugg = [PatternSuggestion::new("git stash", "Save work first")];
+        print_colorful_warning(
+            "git reset --hard HEAD",
+            "blocked",
+            Some("core.git"),
+            Some("reset-hard"),
+            Some("Irreversible."),
+            Some("a1b2c3"),
+            Some(&span),
+            &sugg,
+            Some(Severity::Medium),
+        );
+    }
+
+    #[test]
+    fn test_output_denial_for_protocol_copilot_and_gemini() {
+        let allow = AllowOnceInfo {
+            code: "testcode".to_string(),
+            full_hash: "sha256:abc".to_string(),
+        };
+        output_denial_for_protocol(
+            HookProtocol::Copilot,
+            "git clean -fd",
+            "removes untracked",
+            Some("core.git"),
+            Some("clean-force"),
+            Some("Use -n first."),
+            Some(&allow),
+            None,
+            Some(Severity::High),
+            Some(0.88),
+            &[],
+        );
+        output_denial_for_protocol(
+            HookProtocol::Gemini,
+            "git clean -fd",
+            "removes untracked",
+            Some("core.git"),
+            Some("clean-force"),
+            Some("Use -n first."),
+            Some(&allow),
+            None,
+            Some(Severity::High),
+            Some(0.88),
+            &[],
+        );
+        output_denial(
+            "git clean -fd",
+            "removes untracked",
+            Some("core.git"),
+            Some("clean-force"),
+            Some("Use -n first."),
+            Some(&allow),
+            None,
+            Some(Severity::High),
+            Some(0.88),
+            &[],
+        );
+    }
+
+    #[test]
+    fn test_output_warning_for_protocol_all_variants() {
+        output_warning_for_protocol(
+            HookProtocol::ClaudeCompatible,
+            "git checkout -- file",
+            "discards changes",
+            Some("core.git"),
+            Some("checkout-discard"),
+            Some("stash first"),
+        );
+        output_warning_for_protocol(
+            HookProtocol::Copilot,
+            "git checkout -- file",
+            "discards changes",
+            None,
+            None,
+            None,
+        );
+        output_warning_for_protocol(
+            HookProtocol::Gemini,
+            "git checkout -- file",
+            "discards changes",
+            Some("core.git"),
+            None,
+            None,
+        );
     }
 }
