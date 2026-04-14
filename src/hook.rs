@@ -315,7 +315,7 @@ fn read_hook_input_from<R: Read + ?Sized>(
 pub fn read_hook_input(max_bytes: usize) -> Result<HookInput, HookReadError> {
     let stdin = io::stdin();
     let mut lock = stdin.lock();
-    read_hook_input_from(&mut *lock, max_bytes)
+    read_hook_input_from(&mut lock, max_bytes)
 }
 
 /// Detect which hook protocol should be used for output formatting.
