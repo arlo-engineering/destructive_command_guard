@@ -62,47 +62,35 @@ fn create_safe_patterns() -> Vec<SafePattern> {
 
         // --- Athena start-query-execution: non-destructive query shapes ---
         //
-        // These match the SQL verb inside the `--query-string` argument.
-        // They permit the reading/creating/targeted-modification half of
-        // the surface area while the destructive SQL (DROP/TRUNCATE/
-        // unscoped DELETE) falls through to the destructive patterns
-        // below. Because safe patterns short-circuit `matches_safe` first,
-        // a DELETE-with-WHERE is explicitly allowed even though an
-        // unscoped DELETE would be blocked.
+        // Each pattern anchors the safe SQL verb directly on the opening
+        // of `--query-string` (after any `=`/whitespace and an optional
+        // single/double quote). This is deliberate: `\bSELECT\b` anywhere
+        // in the command would let `DROP TABLE /* SELECT */ prod` bypass
+        // the destructive check, since safe patterns short-circuit
+        // `matches_safe` first.  Requiring the verb at the head of the
+        // query-string matches real usage (AWS Athena's
+        // `start-query-execution` takes a single statement and rejects
+        // semicolon-separated compound statements, so the head verb is
+        // the effective verb).
         //
-        // The patterns are intentionally simple and case-insensitive so
-        // they don't require a backtracking engine: each one anchors on
-        // `aws athena start-query-execution`, then looks for the SQL verb
-        // anywhere in the remainder. The non-destructive verbs
-        // (SELECT/SHOW/DESCRIBE/EXPLAIN/CREATE/INSERT/UPDATE…SET/DELETE…
-        // WHERE) don't overlap with the destructive verbs, so the only
-        // way a destructive query gets through is if neither set matches
-        // — which means no Athena query regex applies.
-        safe_pattern!(
-            "athena-select",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bSELECT\b"
-        ),
-        safe_pattern!(
-            "athena-show-describe-explain",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\b(?:SHOW|DESCRIBE|EXPLAIN)\b"
-        ),
-        safe_pattern!(
-            "athena-create",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bCREATE\s+(?:TABLE|DATABASE|SCHEMA|VIEW|OR\s+REPLACE\s+VIEW|EXTERNAL\s+TABLE)\b"
-        ),
-        safe_pattern!(
-            "athena-insert",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bINSERT\s+(?:INTO|OVERWRITE)\b"
-        ),
-        safe_pattern!(
-            "athena-update-set",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bUPDATE\s+[A-Za-z_][A-Za-z0-9_.]*\s+SET\b"
-        ),
-        // DELETE FROM <table> ... WHERE — targeted deletion is allowed.
-        // Unscoped DELETE falls through to `athena-query-delete-without-where`.
+        // Only verbs that would otherwise be swept up by a destructive
+        // regex need a safe pattern here — `athena-delete-with-where`
+        // exists specifically to escape `athena-query-delete-without-where`
+        // (which matches every `DELETE FROM …`). Pure SELECT / SHOW /
+        // DESCRIBE / EXPLAIN / CREATE / INSERT / UPDATE queries already
+        // fall through both sets and are allowed by default, so we keep
+        // the surface small.
+        //
+        // The trailing `(?!.*;)` is a negative lookahead that rejects
+        // any statement separator after the WHERE clause. Athena's
+        // `start-query-execution` takes a single statement, so a `;` is
+        // either a compound-statement attempt or an embedded literal
+        // (pathological). Either way, we don't want the safe-first
+        // short-circuit to swallow a trailing destructive statement
+        // like `DELETE FROM t WHERE id=1; DROP TABLE t`.
         safe_pattern!(
             "athena-delete-with-where",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bDELETE\s+FROM\s+[A-Za-z_][A-Za-z0-9_.]*\s+.*\bWHERE\b"
+            r#"(?i)aws\s+athena\s+start-query-execution\b.*?--query-string[=\s]+['"]?\s*DELETE\s+FROM\s+[A-Za-z_][A-Za-z0-9_.]*\s+.*?\bWHERE\b(?!.*;)"#
         ),
     ]
 }
@@ -640,6 +628,41 @@ mod tests {
             &pack,
             "aws athena delete-named-query --named-query-id abc-123",
             "delete-named-query",
+        );
+    }
+
+    #[test]
+    fn athena_destructive_query_with_safe_keyword_in_comment_still_blocked() {
+        // Regression: safe patterns anchor the verb at the head of
+        // `--query-string`, so a SQL comment that embeds SELECT/SHOW/etc.
+        // must not bypass a surrounding DROP TABLE.
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --query-string '/* SELECT old_table */ DROP TABLE prod.customers'",
+            "DROP TABLE",
+        );
+        // Multi-statement is invalid Athena SQL, but defense-in-depth:
+        // a SELECT-first query with a trailing DROP must still block.
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --query-string 'SELECT 1; DROP TABLE prod.customers'",
+            "DROP TABLE",
+        );
+        // Same for SELECT followed by TRUNCATE.
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --query-string 'SELECT 1; TRUNCATE TABLE prod.events'",
+            "TRUNCATE",
+        );
+        // DELETE-with-WHERE followed by DROP must still block (the
+        // safe-first short-circuit cannot be exploited this way even on
+        // the one safe pattern we do keep, because Athena rejects
+        // compound statements; we still block as defense in depth).
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --query-string 'DELETE FROM t WHERE id = 1; DROP TABLE t'",
+            "DROP TABLE",
         );
     }
 

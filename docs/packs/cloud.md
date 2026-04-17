@@ -46,12 +46,7 @@ These patterns match safe commands that are always allowed:
 | `sts-identity` | `aws\s+sts\s+get-caller-identity` |
 | `cfn-describe` | `aws\s+cloudformation\s+(?:describe\|list)-` |
 | `ecr-login` | `aws\s+ecr\s+get-login` |
-| `athena-select` | Athena `start-query-execution` with `SELECT` (read-only) |
-| `athena-show-describe-explain` | Athena `SHOW` / `DESCRIBE` / `EXPLAIN` queries (metadata only) |
-| `athena-create` | Athena `CREATE TABLE` / `DATABASE` / `SCHEMA` / `VIEW` / `EXTERNAL TABLE` |
-| `athena-insert` | Athena `INSERT INTO` / `INSERT OVERWRITE` |
-| `athena-update-set` | Athena `UPDATE <table> SET` (modifies specific rows) |
-| `athena-delete-with-where` | Athena `DELETE FROM <table> ... WHERE` (targeted deletion) |
+| `athena-delete-with-where` | Athena `DELETE FROM <table> ... WHERE` (targeted deletion, no trailing `;`) — the only Athena safe pattern needed, since it escapes the broad `athena-query-delete-without-where` destructive rule. Pure `SELECT` / `SHOW` / `DESCRIBE` / `EXPLAIN` / `CREATE` / `INSERT` / `UPDATE` queries aren't matched by any destructive rule and are allowed by default. |
 
 ### Destructive Patterns (Blocked)
 
