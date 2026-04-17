@@ -14,7 +14,7 @@ This document describes packs in the `cloud` category.
 
 **Pack ID:** `cloud.aws`
 
-Protects against destructive AWS CLI operations like terminate-instances, delete-db-instance, and s3 rm --recursive
+Protects against destructive AWS CLI operations like terminate-instances, delete-db-instance, s3 rm --recursive, Athena/Glue catalog deletions, and destructive Athena queries (DROP, TRUNCATE, DELETE without WHERE)
 
 ### Keywords
 
@@ -28,6 +28,8 @@ Commands containing these keywords are checked against this pack:
 - `rds`
 - `ecr`
 - `logs`
+- `athena`
+- `glue`
 
 ### Safe Patterns (Allowed)
 
@@ -44,6 +46,12 @@ These patterns match safe commands that are always allowed:
 | `sts-identity` | `aws\s+sts\s+get-caller-identity` |
 | `cfn-describe` | `aws\s+cloudformation\s+(?:describe\|list)-` |
 | `ecr-login` | `aws\s+ecr\s+get-login` |
+| `athena-select` | Athena `start-query-execution` with `SELECT` (read-only) |
+| `athena-show-describe-explain` | Athena `SHOW` / `DESCRIBE` / `EXPLAIN` queries (metadata only) |
+| `athena-create` | Athena `CREATE TABLE` / `DATABASE` / `SCHEMA` / `VIEW` / `EXTERNAL TABLE` |
+| `athena-insert` | Athena `INSERT INTO` / `INSERT OVERWRITE` |
+| `athena-update-set` | Athena `UPDATE <table> SET` (modifies specific rows) |
+| `athena-delete-with-where` | Athena `DELETE FROM <table> ... WHERE` (targeted deletion) |
 
 ### Destructive Patterns (Blocked)
 
@@ -67,6 +75,21 @@ These patterns match potentially destructive commands:
 | `ecr-delete-lifecycle-policy` | aws ecr delete-lifecycle-policy removes the repository lifecycle policy. | high |
 | `logs-delete-log-group` | aws logs delete-log-group permanently deletes a log group and all events. | high |
 | `logs-delete-log-stream` | aws logs delete-log-stream permanently deletes a log stream and all events. | high |
+| `athena-delete-data-catalog` | aws athena delete-data-catalog removes the catalog and all database/table definitions tied to it. | critical |
+| `athena-delete-work-group` | aws athena delete-work-group removes the Athena workgroup and its configuration. | high |
+| `athena-delete-named-query` | aws athena delete-named-query permanently removes a saved query. | medium |
+| `athena-query-drop-database` | Athena `DROP DATABASE`/`SCHEMA` removes the database from the Glue catalog. | critical |
+| `athena-query-drop-table` | Athena `DROP TABLE`/`VIEW` removes the table definition from the Glue catalog. | high |
+| `athena-query-truncate` | Athena `TRUNCATE TABLE` deletes all rows from an Iceberg table. | critical |
+| `athena-query-delete-without-where` | Athena `DELETE` without a `WHERE` clause removes all rows from the target table. | critical |
+| `glue-delete-database` | aws glue delete-database removes the database and every table definition inside it. | critical |
+| `glue-delete-table` | aws glue delete-table removes the table definition from the catalog. | high |
+| `glue-batch-delete-table` | aws glue batch-delete-table removes multiple table definitions in one call. | critical |
+| `glue-delete-partition` | aws glue delete-partition removes partition metadata. | high |
+| `glue-batch-delete-partition` | aws glue batch-delete-partition removes multiple partition definitions in one call. | high |
+| `glue-delete-crawler` | aws glue delete-crawler removes the crawler configuration. | medium |
+| `glue-delete-job` | aws glue delete-job removes the ETL job definition and all run history. | high |
+| `glue-delete-dev-endpoint` | aws glue delete-dev-endpoint tears down the development endpoint. | medium |
 
 ### Allowlist Guidance
 
