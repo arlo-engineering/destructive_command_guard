@@ -222,4 +222,19 @@ mod tests {
             "grafana-api-delete-alert-notification",
         );
     }
+
+    #[test]
+    fn quoted_prometheus_path_does_not_bypass() {
+        let pack = create_pack();
+        assert_blocks_with_pattern(
+            &pack,
+            "rm \"/etc/prometheus/rules.d/alerts.yml\"",
+            "prometheus-rules-file-delete",
+        );
+        assert_blocks_with_pattern(
+            &pack,
+            "rm -f '/etc/prometheus/prometheus.yml'",
+            "prometheus-rules-file-delete",
+        );
+    }
 }
