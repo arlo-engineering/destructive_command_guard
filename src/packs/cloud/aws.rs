@@ -460,6 +460,50 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              Consider a targeted DELETE with WHERE clause instead."
         ),
         destructive_pattern!(
+            "athena-query-string-from-file",
+            // AWS CLI's `file://` and `fileb://` protocols load the
+            // parameter value from a file — so the SQL content never
+            // appears on the command line and the DROP/TRUNCATE/
+            // unscoped-DELETE regexes have nothing to grep. Block the
+            // shape so users can't hide destructive SQL inside
+            // `--query-string file://query.sql`.
+            r#"(?i)aws\b.*?\bathena\s+start-query-execution\b.*--query-string[=\s]+['"]?\s*(?:file|fileb)://"#,
+            "Athena --query-string loaded from file:// or fileb:// — SQL content is opaque to the guard.",
+            High,
+            "Athena `start-query-execution --query-string file://…` loads the\n\
+             SQL from disk, so DCG can't inspect the statement. The file may\n\
+             contain DROP DATABASE, TRUNCATE TABLE, or an unscoped DELETE.\n\n\
+             Prefer the inline form so the guard can see what you're running:\n  \
+             aws athena start-query-execution \\\n    \
+             --query-string 'SELECT … FROM …'\n\n\
+             If a file-loaded query is genuinely required, cat it first so\n\
+             the content is inspectable, and allowlist this rule in your\n\
+             project DCG config with a justification."
+        ),
+        destructive_pattern!(
+            "athena-cli-input-file",
+            // `--cli-input-json file://…` / `--cli-input-yaml file://…`
+            // loads the whole invocation (including QueryString) from a
+            // file on disk. DCG can't inspect the file, so destructive
+            // SQL inside it is invisible. Only block the file-backed
+            // form — inline JSON/YAML is still visible to the broader
+            // DROP/TRUNCATE/DELETE regexes elsewhere in the pack, so no
+            // need to over-block inline usage.
+            r#"(?i)aws\b.*?\bathena\s+start-query-execution\b.*--cli-input-(?:json|yaml)[=\s]+['"]?\s*(?:file|fileb)://"#,
+            "Athena --cli-input-json/yaml loaded from file:// or fileb:// — content is opaque to the guard.",
+            High,
+            "`--cli-input-json file://…` (or `-yaml`) supplies the whole\n\
+             invocation — including QueryString — from a file on disk. DCG\n\
+             only greps the command line, so a DROP or TRUNCATE buried in\n\
+             the JSON/YAML body on disk slips past every other Athena rule.\n\n\
+             Inline JSON/YAML (e.g. `--cli-input-json '{…}'`) is still\n\
+             allowed because DCG can read the literal in the command line\n\
+             and catch a DROP there.\n\n\
+             Prefer explicit `--query-string '…'`, or inline the JSON blob.\n\
+             If the file-backed form is genuinely required, allowlist this\n\
+             rule with a justification."
+        ),
+        destructive_pattern!(
             "athena-query-delete-without-where",
             // Match DELETE FROM <table> with no WHERE later in the query.
             // (The safe `athena-delete-with-where` pattern short-circuits
@@ -822,6 +866,49 @@ mod tests {
         assert_allows(
             &pack,
             "aws athena start-query-execution --query-string 'DELETE FROM reporting.events WHERE ts < now() - interval 30 day'",
+        );
+    }
+
+    #[test]
+    fn athena_query_string_via_file_protocol_is_flagged() {
+        // Regression: AWS CLI's `file://` and `fileb://` protocols load
+        // the parameter value from a file, and `--cli-input-json` /
+        // `--cli-input-yaml` load the entire invocation from a file. In
+        // all of these cases the destructive SQL never appears on the
+        // command line, so the `DROP DATABASE`/`TRUNCATE`/unscoped
+        // `DELETE` regexes have nothing to grep. These shapes need to
+        // be blocked (or at least flagged) so a user can't hide a
+        // `DROP DATABASE` inside `file://query.sql` and slip past.
+        let pack = create_pack();
+        // file:// loading
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --query-string file:///tmp/secret-query.sql",
+            "file",
+        );
+        // fileb:// (binary) loading
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --query-string fileb:///tmp/secret-query.sql",
+            "file",
+        );
+        // --cli-input-json: whole invocation from a file
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --cli-input-json file:///tmp/input.json",
+            "cli-input",
+        );
+        // --cli-input-yaml: same, YAML flavor
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --cli-input-yaml file:///tmp/input.yaml",
+            "cli-input",
+        );
+        // Also with global flags ahead of the service
+        assert_blocks(
+            &pack,
+            "aws --profile prod athena start-query-execution --query-string file:///tmp/q.sql",
+            "file",
         );
     }
 
