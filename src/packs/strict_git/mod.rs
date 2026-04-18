@@ -117,16 +117,18 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             r"git\b.*?\badd\s+(?:-A|--all)\b",
             "git add -A/--all stages all changes including secrets, .env files, and build artifacts. Use 'git add <specific-files>' instead."
         ),
-        // Block push to master
+        // Block push to master. Separators include `/` so explicit refspecs
+        // like `HEAD:refs/heads/master` are caught — `main` appearing after
+        // `/` in `refs/heads/main` used to bypass the old `[\s:]` separator.
         destructive_pattern!(
             "push-master",
-            r"git\s+(?:\S+\s+)*push\s+(?:.*[\s:])?master(?:\s|$)",
+            r"git\s+(?:\S+\s+)*push\s+(?:.*[\s:/])?master(?:\s|$)",
             "Direct push to master is blocked. Use a feature branch and open a Pull Request."
         ),
         // Block push to main
         destructive_pattern!(
             "push-main",
-            r"git\s+(?:\S+\s+)*push\s+(?:.*[\s:])?main(?:\s|$)",
+            r"git\s+(?:\S+\s+)*push\s+(?:.*[\s:/])?main(?:\s|$)",
             "Direct push to main is blocked. Use a feature branch and open a Pull Request."
         ),
     ]
@@ -258,10 +260,36 @@ mod tests {
             "git push origin main:main",
             "Direct push to main is blocked",
         );
+        // Explicit refspec forms must not bypass via the `/` separator.
+        assert_blocks(
+            &pack,
+            "git push origin HEAD:refs/heads/main",
+            "Direct push to main is blocked",
+        );
+        assert_blocks(
+            &pack,
+            "git push origin refs/heads/main",
+            "Direct push to main is blocked",
+        );
 
         // These should be allowed (unless blocked by other rules)
         assert_allows(&pack, "git push origin feature-main");
         assert_allows(&pack, "git push origin main-fix");
         assert_allows(&pack, "git push origin maintain");
+    }
+
+    #[test]
+    fn test_push_master_refspec() {
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "git push origin HEAD:refs/heads/master",
+            "Direct push to master is blocked",
+        );
+        assert_blocks(
+            &pack,
+            "git push origin refs/heads/master",
+            "Direct push to master is blocked",
+        );
     }
 }
