@@ -972,6 +972,31 @@ mod tests {
     }
 
     #[test]
+    fn athena_patterns_match_through_common_wrappers() {
+        // `aws-vault exec prod -- aws athena …` and similar wrapper tools
+        // are mainline in organizations using MFA / role-assumption. Our
+        // `aws\b.*?\bathena\b` anchor needs to keep working when the
+        // literal `aws` appears inside a wrapper binary name too.
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "aws-vault exec prod -- aws athena delete-data-catalog --name bad",
+            "delete-data-catalog",
+        );
+        assert_blocks(
+            &pack,
+            "aws-vault exec prod -- aws --profile inner athena start-query-execution --query-string 'DROP DATABASE x'",
+            "DROP DATABASE",
+        );
+        // `aws-sso` login shim followed by a real command.
+        assert_blocks(
+            &pack,
+            "aws-sso exec -A prod aws glue delete-database --name analytics",
+            "delete-database",
+        );
+    }
+
+    #[test]
     fn athena_patterns_match_with_global_flags_before_service() {
         // Regression: the AWS CLI accepts global flags like `--profile`,
         // `--region`, `--debug` BEFORE the service name. If those break
