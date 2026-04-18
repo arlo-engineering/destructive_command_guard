@@ -44,21 +44,21 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // describe/list/get operations are safe (read-only)
-        safe_pattern!("aws-describe", r"aws\s+\S+\s+describe-"),
-        safe_pattern!("aws-list", r"aws\s+\S+\s+list-"),
-        safe_pattern!("aws-get", r"aws\s+\S+\s+get-"),
+        safe_pattern!("aws-describe", r"aws\b.*?\s+\S+\s+describe-"),
+        safe_pattern!("aws-list", r"aws\b.*?\s+\S+\s+list-"),
+        safe_pattern!("aws-get", r"aws\b.*?\s+\S+\s+get-"),
         // s3 ls is safe
-        safe_pattern!("s3-ls", r"aws\s+s3\s+ls"),
+        safe_pattern!("s3-ls", r"aws\b.*?\bs3\s+ls"),
         // s3 cp is generally safe (copy)
-        safe_pattern!("s3-cp", r"aws\s+s3\s+cp"),
+        safe_pattern!("s3-cp", r"aws\b.*?\bs3\s+cp"),
         // dry-run flag
         safe_pattern!("aws-dry-run", r"aws\s+.*--dry-run"),
         // sts get-caller-identity is safe
-        safe_pattern!("sts-identity", r"aws\s+sts\s+get-caller-identity"),
+        safe_pattern!("sts-identity", r"aws\b.*?\bsts\s+get-caller-identity"),
         // cloudformation describe/list
-        safe_pattern!("cfn-describe", r"aws\s+cloudformation\s+(?:describe|list)-"),
+        safe_pattern!("cfn-describe", r"aws\b.*?\bcloudformation\s+(?:describe|list)-"),
         // ecr get-login-password is safe
-        safe_pattern!("ecr-login", r"aws\s+ecr\s+get-login"),
+        safe_pattern!("ecr-login", r"aws\b.*?\becr\s+get-login"),
 
         // --- Athena start-query-execution: non-destructive query shapes ---
         //
@@ -122,7 +122,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // ec2 terminate-instances
         destructive_pattern!(
             "ec2-terminate",
-            r"aws\s+ec2\s+terminate-instances",
+            r"aws\b.*?\bec2\s+terminate-instances",
             "aws ec2 terminate-instances permanently destroys EC2 instances.",
             Critical,
             "terminate-instances permanently destroys EC2 instances:\n\n\
@@ -139,7 +139,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // ec2 delete-* commands
         destructive_pattern!(
             "removes AWS resources",
-            r"aws\s+ec2\s+delete-(?:snapshot|volume|vpc|subnet|security-group|key-pair|image)",
+            r"aws\b.*?\bec2\s+delete-(?:snapshot|volume|vpc|subnet|security-group|key-pair|image)",
             "aws ec2 delete-* permanently removes AWS resources.",
             High,
             "EC2 delete commands permanently remove resources:\n\n\
@@ -155,7 +155,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // s3 rm --recursive
         destructive_pattern!(
             "s3-rm-recursive",
-            r"aws\s+s3\s+rm\s+.*--recursive",
+            r"aws\b.*?\bs3\s+rm\s+.*--recursive",
             "aws s3 rm --recursive permanently deletes all objects in the path.",
             Critical,
             "s3 rm --recursive deletes ALL objects under the specified path:\n\n\
@@ -172,7 +172,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // s3 rb (remove bucket)
         destructive_pattern!(
             "s3-rb",
-            r"aws\s+s3\s+rb\b",
+            r"aws\b.*?\bs3\s+rb\b",
             "aws s3 rb removes the entire S3 bucket.",
             Critical,
             "s3 rb removes an S3 bucket:\n\n\
@@ -188,7 +188,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // s3api delete-bucket
         destructive_pattern!(
             "s3api-delete-bucket",
-            r"aws\s+s3api\s+delete-bucket",
+            r"aws\b.*?\bs3api\s+delete-bucket",
             "aws s3api delete-bucket removes the entire S3 bucket.",
             Critical,
             "s3api delete-bucket removes a bucket (must be empty):\n\n\
@@ -202,7 +202,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // rds delete-db-instance
         destructive_pattern!(
             "rds-delete",
-            r"aws\s+rds\s+delete-db-(?:instance|cluster|snapshot|cluster-snapshot)",
+            r"aws\b.*?\brds\s+delete-db-(?:instance|cluster|snapshot|cluster-snapshot)",
             "aws rds delete-db-instance/cluster permanently destroys the database.",
             Critical,
             "RDS delete commands permanently remove database resources:\n\n\
@@ -219,7 +219,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // cloudformation delete-stack
         destructive_pattern!(
             "cfn-delete-stack",
-            r"aws\s+cloudformation\s+delete-stack",
+            r"aws\b.*?\bcloudformation\s+delete-stack",
             "aws cloudformation delete-stack removes the entire stack and its resources.",
             Critical,
             "CloudFormation delete-stack removes the stack AND all resources it created:\n\n\
@@ -236,7 +236,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // lambda delete-function
         destructive_pattern!(
             "lambda-delete",
-            r"aws\s+lambda\s+delete-function",
+            r"aws\b.*?\blambda\s+delete-function",
             "aws lambda delete-function permanently removes the Lambda function.",
             High,
             "delete-function removes a Lambda function completely:\n\n\
@@ -252,7 +252,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // iam delete-user/role/policy
         destructive_pattern!(
             "iam-delete",
-            r"aws\s+iam\s+delete-(?:user|role|policy|group)",
+            r"aws\b.*?\biam\s+delete-(?:user|role|policy|group)",
             "aws iam delete-* removes IAM resources. Verify dependencies first.",
             High,
             "IAM delete commands remove identity resources:\n\n\
@@ -268,7 +268,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // dynamodb delete-table
         destructive_pattern!(
             "dynamodb-delete",
-            r"aws\s+dynamodb\s+delete-table",
+            r"aws\b.*?\bdynamodb\s+delete-table",
             "aws dynamodb delete-table permanently deletes the table and all data.",
             Critical,
             "delete-table removes a DynamoDB table and ALL its data:\n\n\
@@ -284,7 +284,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // eks delete-cluster
         destructive_pattern!(
             "eks-delete",
-            r"aws\s+eks\s+delete-cluster",
+            r"aws\b.*?\beks\s+delete-cluster",
             "aws eks delete-cluster removes the entire EKS cluster.",
             Critical,
             "delete-cluster removes an EKS cluster:\n\n\
@@ -300,7 +300,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // ecr delete-repository
         destructive_pattern!(
             "ecr-delete-repository",
-            r"aws\s+ecr\s+delete-repository",
+            r"aws\b.*?\becr\s+delete-repository",
             "aws ecr delete-repository permanently deletes the repository and its images.",
             High,
             "delete-repository removes an ECR repository:\n\n\
@@ -315,7 +315,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // ecr batch-delete-image
         destructive_pattern!(
             "ecr-batch-delete-image",
-            r"aws\s+ecr\s+batch-delete-image",
+            r"aws\b.*?\becr\s+batch-delete-image",
             "aws ecr batch-delete-image permanently deletes one or more images.",
             High,
             "batch-delete-image removes specific images from ECR:\n\n\
@@ -329,7 +329,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // ecr delete-lifecycle-policy
         destructive_pattern!(
             "ecr-delete-lifecycle-policy",
-            r"aws\s+ecr\s+delete-lifecycle-policy",
+            r"aws\b.*?\becr\s+delete-lifecycle-policy",
             "aws ecr delete-lifecycle-policy removes the repository lifecycle policy.",
             Medium,
             "delete-lifecycle-policy removes automatic image cleanup rules:\n\n\
@@ -342,7 +342,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // CloudWatch Logs delete-log-group
         destructive_pattern!(
             "logs-delete-log-group",
-            r"aws\s+logs\s+delete-log-group",
+            r"aws\b.*?\blogs\s+delete-log-group",
             "aws logs delete-log-group permanently deletes a log group and all events.",
             High,
             "delete-log-group removes a CloudWatch log group:\n\n\
@@ -357,7 +357,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // CloudWatch Logs delete-log-stream
         destructive_pattern!(
             "logs-delete-log-stream",
-            r"aws\s+logs\s+delete-log-stream",
+            r"aws\b.*?\blogs\s+delete-log-stream",
             "aws logs delete-log-stream permanently deletes a log stream and all events.",
             High,
             "delete-log-stream removes a specific log stream:\n\n\
@@ -625,6 +625,94 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
 mod tests {
     use super::*;
     use crate::packs::test_helpers::*;
+
+    #[test]
+    fn existing_aws_patterns_also_match_with_global_flags() {
+        // Class-bug sweep: the same `aws --profile / --region / --debug`
+        // bypass that affected my new athena/glue patterns equally
+        // affects every pre-existing AWS rule in this file. Any
+        // multi-profile shop (which is every non-trivial org) is
+        // silently exempt from DCG protection unless we fix them all.
+        let pack = create_pack();
+        // ec2 terminate
+        assert_blocks(
+            &pack,
+            "aws --profile prod ec2 terminate-instances --instance-ids i-abc",
+            "terminate-instances",
+        );
+        // ec2 delete-*
+        assert_blocks(
+            &pack,
+            "aws --region us-east-1 ec2 delete-snapshot --snapshot-id snap-abc",
+            "removes AWS resources",
+        );
+        // s3 rm --recursive
+        assert_blocks(
+            &pack,
+            "aws --profile prod s3 rm s3://bucket/prefix --recursive",
+            "recursive",
+        );
+        // rds delete
+        assert_blocks(
+            &pack,
+            "aws --profile prod rds delete-db-instance --db-instance-identifier prod-db",
+            "destroys the database",
+        );
+        // cloudformation delete-stack
+        assert_blocks(
+            &pack,
+            "aws --region us-east-1 cloudformation delete-stack --stack-name prod",
+            "delete-stack",
+        );
+        // lambda delete
+        assert_blocks(
+            &pack,
+            "aws --profile prod lambda delete-function --function-name prod-fn",
+            "delete-function",
+        );
+        // iam delete-*
+        assert_blocks(
+            &pack,
+            "aws --profile prod iam delete-user --user-name admin",
+            "IAM",
+        );
+        // dynamodb delete-table
+        assert_blocks(
+            &pack,
+            "aws --profile prod dynamodb delete-table --table-name Customers",
+            "delete-table",
+        );
+        // eks delete-cluster
+        assert_blocks(
+            &pack,
+            "aws --profile prod eks delete-cluster --name prod",
+            "delete-cluster",
+        );
+        // ecr delete-repository
+        assert_blocks(
+            &pack,
+            "aws --profile prod ecr delete-repository --repository-name app",
+            "delete-repository",
+        );
+        // logs delete-log-group
+        assert_blocks(
+            &pack,
+            "aws --profile prod logs delete-log-group --log-group-name /aws/lambda/prod",
+            "delete-log-group",
+        );
+        // s3api delete-bucket
+        assert_blocks(
+            &pack,
+            "aws --profile prod s3api delete-bucket --bucket prod-bucket",
+            "delete-bucket",
+        );
+        // s3 rb
+        assert_blocks(
+            &pack,
+            "aws --profile prod s3 rb s3://prod-bucket",
+            "s3 rb",
+        );
+    }
 
     #[test]
     fn ec2_and_rds_patterns_block() {
