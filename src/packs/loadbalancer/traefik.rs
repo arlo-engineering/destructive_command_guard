@@ -43,12 +43,12 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // Docker inspect/logs (read-only)
         safe_pattern!(
             "docker-traefik-inspect",
-            r"docker\s+(?:inspect|logs)\s+.*\btraefik\b"
+            r"docker\b.*?\s+(?:inspect|logs)\s+.*\btraefik\b"
         ),
         // Kubectl get/describe (read-only)
         safe_pattern!(
             "kubectl-traefik-get",
-            r"kubectl\s+(?:get|describe)\s+.*\bingressroute"
+            r"kubectl\b.*?\s+(?:get|describe)\s+.*\bingressroute"
         ),
     ]
 }
@@ -58,7 +58,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Docker container operations
         destructive_pattern!(
             "traefik-docker-stop",
-            r"docker\s+(?:stop|kill)\s+.*\btraefik\b",
+            r"docker\b.*?\s+(?:stop|kill)\s+.*\btraefik\b",
             "Stopping the Traefik container halts all traffic routing.",
             Critical,
             "Stopping or killing the Traefik container immediately halts all HTTP/HTTPS \
@@ -71,7 +71,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "traefik-docker-rm",
-            r"docker\s+rm\s+.*\btraefik\b",
+            r"docker\b.*?\s+rm\s+.*\btraefik\b",
             "Removing the Traefik container destroys the load balancer.",
             Critical,
             "Removing the Traefik container deletes it entirely, including any runtime \
@@ -97,7 +97,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Kubernetes operations
         destructive_pattern!(
             "traefik-kubectl-delete-pod",
-            r"kubectl\s+delete\s+(?:pod|deployment|daemonset)\s+.*\btraefik\b",
+            r"kubectl\b.*?\s+delete\s+(?:pod|deployment|daemonset)\s+.*\btraefik\b",
             "Deleting Traefik pods/deployments disrupts traffic routing.",
             Critical,
             "Deleting Traefik pods or deployments removes the load balancer from the \
@@ -111,7 +111,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "traefik-kubectl-delete-ingressroute",
-            r"kubectl\s+delete\s+ingressroute\b",
+            r"kubectl\b.*?\s+delete\s+ingressroute\b",
             "Deleting IngressRoute CRDs removes Traefik routing rules.",
             High,
             "IngressRoute custom resources define how Traefik routes traffic to backend \

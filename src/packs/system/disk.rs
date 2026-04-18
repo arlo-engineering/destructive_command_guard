@@ -82,32 +82,32 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("mdadm-scan", r"mdadm\s+--scan\b"),
         // --- btrfs safe patterns ---
         // btrfs subvolume list (read-only)
-        safe_pattern!("btrfs-subvolume-list", r"btrfs\s+subvolume\s+list\b"),
+        safe_pattern!("btrfs-subvolume-list", r"btrfs\b.*?\s+subvolume\s+list\b"),
         // btrfs subvolume show (read-only)
-        safe_pattern!("btrfs-subvolume-show", r"btrfs\s+subvolume\s+show\b"),
+        safe_pattern!("btrfs-subvolume-show", r"btrfs\b.*?\s+subvolume\s+show\b"),
         // btrfs filesystem show (read-only)
-        safe_pattern!("btrfs-filesystem-show", r"btrfs\s+filesystem\s+show\b"),
+        safe_pattern!("btrfs-filesystem-show", r"btrfs\b.*?\s+filesystem\s+show\b"),
         // btrfs filesystem df (read-only)
-        safe_pattern!("btrfs-filesystem-df", r"btrfs\s+filesystem\s+df\b"),
+        safe_pattern!("btrfs-filesystem-df", r"btrfs\b.*?\s+filesystem\s+df\b"),
         // btrfs filesystem usage (read-only)
-        safe_pattern!("btrfs-filesystem-usage", r"btrfs\s+filesystem\s+usage\b"),
+        safe_pattern!("btrfs-filesystem-usage", r"btrfs\b.*?\s+filesystem\s+usage\b"),
         // btrfs device stats (read-only)
-        safe_pattern!("btrfs-device-stats", r"btrfs\s+device\s+stats\b"),
+        safe_pattern!("btrfs-device-stats", r"btrfs\b.*?\s+device\s+stats\b"),
         // btrfs property get/list (read-only)
-        safe_pattern!("btrfs-property-get", r"btrfs\s+property\s+(?:get|list)\b"),
+        safe_pattern!("btrfs-property-get", r"btrfs\b.*?\s+property\s+(?:get|list)\b"),
         // btrfs scrub status (read-only)
-        safe_pattern!("btrfs-scrub-status", r"btrfs\s+scrub\s+status\b"),
+        safe_pattern!("btrfs-scrub-status", r"btrfs\b.*?\s+scrub\s+status\b"),
         // --- dmsetup safe patterns ---
         // dmsetup ls (list devices)
-        safe_pattern!("dmsetup-ls", r"dmsetup\s+ls\b"),
+        safe_pattern!("dmsetup-ls", r"dmsetup\b.*?\s+ls\b"),
         // dmsetup status (show status)
-        safe_pattern!("dmsetup-status", r"dmsetup\s+status\b"),
+        safe_pattern!("dmsetup-status", r"dmsetup\b.*?\s+status\b"),
         // dmsetup info (show info)
-        safe_pattern!("dmsetup-info", r"dmsetup\s+info\b"),
+        safe_pattern!("dmsetup-info", r"dmsetup\b.*?\s+info\b"),
         // dmsetup table (show mapping table)
-        safe_pattern!("dmsetup-table", r"dmsetup\s+table\b"),
+        safe_pattern!("dmsetup-table", r"dmsetup\b.*?\s+table\b"),
         // dmsetup deps (show dependencies)
-        safe_pattern!("dmsetup-deps", r"dmsetup\s+deps\b"),
+        safe_pattern!("dmsetup-deps", r"dmsetup\b.*?\s+deps\b"),
         // --- nbd-client safe patterns ---
         // nbd-client -l (list exports)
         safe_pattern!("nbd-client-list", r"nbd-client\s+-l\b"),
@@ -220,80 +220,80 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // btrfs subvolume delete
         destructive_pattern!(
             "btrfs-subvolume-delete",
-            r"btrfs\s+subvolume\s+delete\b",
+            r"btrfs\b.*?\s+subvolume\s+delete\b",
             "btrfs subvolume delete PERMANENTLY removes a subvolume and all its data."
         ),
         // btrfs device remove/delete
         destructive_pattern!(
             "btrfs-device-remove",
-            r"btrfs\s+device\s+(?:remove|delete)\b",
+            r"btrfs\b.*?\s+device\s+(?:remove|delete)\b",
             "btrfs device remove redistributes data off a device. Interruption causes data loss."
         ),
         // btrfs device add (can be dangerous with wrong device)
         destructive_pattern!(
             "btrfs-device-add",
-            r"btrfs\s+device\s+add\b",
+            r"btrfs\b.*?\s+device\s+add\b",
             "btrfs device add incorporates a device into the filesystem. Verify the device is correct."
         ),
         // btrfs balance start (can be very disruptive)
         destructive_pattern!(
             "btrfs-balance",
-            r"btrfs\s+balance\s+start\b",
+            r"btrfs\b.*?\s+balance\s+start\b",
             "btrfs balance redistributes data across devices. Can be slow and disruptive."
         ),
         // btrfs check --repair (dangerous, can corrupt filesystem)
         destructive_pattern!(
             "btrfs-check-repair",
-            r"btrfs\s+check\s+(?:.*\s+)?--repair\b",
+            r"btrfs\b.*?\s+check\s+(?:.*\s+)?--repair\b",
             "btrfs check --repair is DANGEROUS and can cause data loss. Backup first!"
         ),
         // btrfs rescue (emergency operations)
         destructive_pattern!(
             "btrfs-rescue",
-            r"btrfs\s+rescue\b",
+            r"btrfs\b.*?\s+rescue\b",
             "btrfs rescue operations modify filesystem metadata. Use only as last resort."
         ),
         // btrfs filesystem resize (can shrink)
         destructive_pattern!(
             "btrfs-filesystem-resize",
-            r"btrfs\s+filesystem\s+resize\b",
+            r"btrfs\b.*?\s+filesystem\s+resize\b",
             "btrfs filesystem resize can shrink a filesystem. Data loss if size is too small."
         ),
         // --- dmsetup destructive patterns ---
         // dmsetup remove (removes a device-mapper device)
         destructive_pattern!(
             "dmsetup-remove",
-            r"dmsetup\s+remove\b",
+            r"dmsetup\b.*?\s+remove\b",
             "dmsetup remove detaches a device-mapper device. May cause data loss if in use."
         ),
         // dmsetup remove_all (removes ALL device-mapper devices)
         destructive_pattern!(
             "dmsetup-remove-all",
-            r"dmsetup\s+remove_all\b",
+            r"dmsetup\b.*?\s+remove_all\b",
             "dmsetup remove_all removes ALL device-mapper devices. Extremely dangerous!"
         ),
         // dmsetup wipe_table (replaces table with error target)
         destructive_pattern!(
             "dmsetup-wipe-table",
-            r"dmsetup\s+wipe_table\b",
+            r"dmsetup\b.*?\s+wipe_table\b",
             "dmsetup wipe_table replaces the device table, causing all I/O to fail."
         ),
         // dmsetup clear (clears the table)
         destructive_pattern!(
             "dmsetup-clear",
-            r"dmsetup\s+clear\b",
+            r"dmsetup\b.*?\s+clear\b",
             "dmsetup clear removes the mapping table from a device."
         ),
         // dmsetup load (loads a new table)
         destructive_pattern!(
             "dmsetup-load",
-            r"dmsetup\s+load\b",
+            r"dmsetup\b.*?\s+load\b",
             "dmsetup load changes device mapping. Verify the new table is correct."
         ),
         // dmsetup create (creates a new device)
         destructive_pattern!(
             "dmsetup-create",
-            r"dmsetup\s+create\b",
+            r"dmsetup\b.*?\s+create\b",
             "dmsetup create sets up a new device-mapper device. Verify parameters carefully."
         ),
         // --- nbd-client destructive patterns ---
@@ -383,5 +383,31 @@ mod tests {
         let pack = create_pack();
         assert!(!pack.might_match("echo hello"));
         assert!(pack.check("echo hello").is_none());
+    }
+
+    #[test]
+    fn btrfs_dmsetup_global_flags_do_not_bypass() {
+        let pack = create_pack();
+        // btrfs accepts --format, --verbose, --quiet before the subcommand.
+        let matched = pack
+            .check("btrfs --format json subvolume delete /mnt/foo")
+            .expect("btrfs --format subvolume delete should still block");
+        assert_eq!(matched.name, Some("btrfs-subvolume-delete"));
+
+        let matched = pack
+            .check("btrfs --verbose check --repair /dev/sda1")
+            .expect("btrfs --verbose check --repair should still block");
+        assert_eq!(matched.name, Some("btrfs-check-repair"));
+
+        // dmsetup accepts -v, --noudevsync, --verifyudev before the subcommand.
+        let matched = pack
+            .check("dmsetup -v remove_all")
+            .expect("dmsetup -v remove_all should still block");
+        assert_eq!(matched.name, Some("dmsetup-remove-all"));
+
+        let matched = pack
+            .check("dmsetup --noudevsync remove my-dev")
+            .expect("dmsetup with noudevsync should still block");
+        assert_eq!(matched.name, Some("dmsetup-remove"));
     }
 }
