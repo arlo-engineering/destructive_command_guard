@@ -90,6 +90,12 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // like `DELETE FROM t WHERE id=1; DROP TABLE t`.
         safe_pattern!(
             "athena-delete-with-where",
+            // `aws\b.*?\bathena\b` instead of `aws\s+athena` so global
+            // flags between `aws` and the service (e.g.
+            // `aws --profile prod athena …`, `aws --region us-east-1 …`)
+            // don't let the pattern silently desync and slip the command
+            // through as "not an athena command."
+            //
             // Table identifier is `[^\s;]+` rather than `\S+` — otherwise
             // a greedy `\S+` absorbs the `;` in `DELETE FROM t; DELETE
             // FROM u WHERE id=1`, letting the regex slide forward to the
@@ -102,7 +108,7 @@ fn create_safe_patterns() -> Vec<SafePattern> {
             // The character class still covers bare names (`t`),
             // schema-qualified names (`db.t`), double-quoted identifiers
             // (`"my-t"`), and backtick-quoted identifiers (`` `my-t` ``).
-            r#"(?i)aws\s+athena\s+start-query-execution\b.*?--query-string[=\s]+['"]?\s*DELETE\s+FROM\s+[^\s;]+\s+.*?\bWHERE\b(?!.*;)"#
+            r#"(?i)aws\b.*?\bathena\s+start-query-execution\b.*?--query-string[=\s]+['"]?\s*DELETE\s+FROM\s+[^\s;]+\s+.*?\bWHERE\b(?!.*;)"#
         ),
     ]
 }
@@ -361,9 +367,16 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
 
         // ---- Athena catalog / workgroup deletions ---------------------------
+        //
+        // Every Athena + Glue pattern below uses `aws\b.*?\b<svc>\b` in
+        // place of `aws\s+<svc>\s+` so that global flags between `aws`
+        // and the service name (`--profile`, `--region`, `--debug`,
+        // `--output`, `--endpoint-url`, …) don't silently neuter the
+        // rule. See `athena_patterns_match_with_global_flags_before_service`
+        // for the regression coverage.
         destructive_pattern!(
             "athena-delete-data-catalog",
-            r"aws\s+athena\s+delete-data-catalog\b",
+            r"aws\b.*?\bathena\s+delete-data-catalog\b",
             "aws athena delete-data-catalog removes the data catalog and all \
              database/table definitions tied to it.",
             Critical,
@@ -378,7 +391,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "athena-delete-work-group",
-            r"aws\s+athena\s+delete-work-group\b",
+            r"aws\b.*?\bathena\s+delete-work-group\b",
             "aws athena delete-work-group removes the Athena workgroup and its configuration.",
             High,
             "delete-work-group removes an Athena workgroup:\n\n\
@@ -390,7 +403,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "athena-delete-named-query",
-            r"aws\s+athena\s+delete-named-query\b",
+            r"aws\b.*?\bathena\s+delete-named-query\b",
             "aws athena delete-named-query permanently removes a saved query.",
             Medium,
             "delete-named-query deletes a saved Athena query:\n\n\
@@ -407,7 +420,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // will match as safe first and never reach these checks.
         destructive_pattern!(
             "athena-query-drop-database",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bDROP\s+(?:DATABASE|SCHEMA)\b",
+            r"(?i)aws\b.*?\bathena\s+start-query-execution\b.*\bDROP\s+(?:DATABASE|SCHEMA)\b",
             "Athena DROP DATABASE/SCHEMA removes the database from the Glue catalog.",
             Critical,
             "DROP DATABASE/SCHEMA removes a database from the Glue catalog:\n\n\
@@ -423,7 +436,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "athena-query-drop-table",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bDROP\s+(?:TABLE|VIEW|EXTERNAL\s+TABLE)\b",
+            r"(?i)aws\b.*?\bathena\s+start-query-execution\b.*\bDROP\s+(?:TABLE|VIEW|EXTERNAL\s+TABLE)\b",
             "Athena DROP TABLE/VIEW removes the table definition from the Glue catalog.",
             High,
             "DROP TABLE/VIEW removes a table or view from the catalog:\n\n\
@@ -436,7 +449,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "athena-query-truncate",
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bTRUNCATE\s+TABLE\b",
+            r"(?i)aws\b.*?\bathena\s+start-query-execution\b.*\bTRUNCATE\s+TABLE\b",
             "Athena TRUNCATE TABLE deletes all rows from an Iceberg table.",
             Critical,
             "TRUNCATE TABLE in Athena (Iceberg tables):\n\n\
@@ -453,7 +466,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             // `matches_safe` first, so this only fires on unscoped DELETE.)
             // `\S+` is deliberately broad so quoted identifiers like
             // `"my-table"` or `` `my-table` `` can't evade the block.
-            r"(?i)aws\s+athena\s+start-query-execution\b.*\bDELETE\s+FROM\s+\S+",
+            r"(?i)aws\b.*?\bathena\s+start-query-execution\b.*\bDELETE\s+FROM\s+\S+",
             "Athena DELETE without a WHERE clause removes all rows from the target table.",
             Critical,
             "DELETE FROM <table> without a WHERE clause:\n\n\
@@ -468,7 +481,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // ---- Glue catalog deletions -----------------------------------------
         destructive_pattern!(
             "glue-delete-database",
-            r"aws\s+glue\s+delete-database\b",
+            r"aws\b.*?\bglue\s+delete-database\b",
             "aws glue delete-database removes the database and every table definition inside it.",
             Critical,
             "delete-database drops a Glue database and every table/partition in it:\n\n\
@@ -481,7 +494,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "glue-delete-table",
-            r"aws\s+glue\s+delete-table\b",
+            r"aws\b.*?\bglue\s+delete-table\b",
             "aws glue delete-table removes the table definition from the catalog.",
             High,
             "delete-table removes a Glue table definition:\n\n\
@@ -493,7 +506,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "glue-batch-delete-table",
-            r"aws\s+glue\s+batch-delete-table\b",
+            r"aws\b.*?\bglue\s+batch-delete-table\b",
             "aws glue batch-delete-table removes multiple table definitions in one call.",
             Critical,
             "batch-delete-table drops several Glue tables in one API call:\n\n\
@@ -506,7 +519,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "glue-delete-partition",
-            r"aws\s+glue\s+delete-partition\b",
+            r"aws\b.*?\bglue\s+delete-partition\b",
             "aws glue delete-partition removes partition metadata; the partition is no longer \
              queryable until recreated.",
             High,
@@ -517,7 +530,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "glue-batch-delete-partition",
-            r"aws\s+glue\s+batch-delete-partition\b",
+            r"aws\b.*?\bglue\s+batch-delete-partition\b",
             "aws glue batch-delete-partition removes multiple partition definitions in one call.",
             High,
             "batch-delete-partition drops several Glue partitions at once:\n\n\
@@ -527,7 +540,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "glue-delete-crawler",
-            r"aws\s+glue\s+delete-crawler\b",
+            r"aws\b.*?\bglue\s+delete-crawler\b",
             "aws glue delete-crawler removes the crawler configuration.",
             Medium,
             "delete-crawler removes a Glue crawler:\n\n\
@@ -537,7 +550,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "glue-delete-job",
-            r"aws\s+glue\s+delete-job\b",
+            r"aws\b.*?\bglue\s+delete-job\b",
             "aws glue delete-job removes the ETL job definition and all of its run history.",
             High,
             "delete-job removes a Glue ETL job:\n\n\
@@ -549,7 +562,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "glue-delete-dev-endpoint",
-            r"aws\s+glue\s+delete-dev-endpoint\b",
+            r"aws\b.*?\bglue\s+delete-dev-endpoint\b",
             "aws glue delete-dev-endpoint tears down the development endpoint and any attached \
              SageMaker notebook configuration.",
             Medium,
@@ -809,6 +822,41 @@ mod tests {
         assert_allows(
             &pack,
             "aws athena start-query-execution --query-string 'DELETE FROM reporting.events WHERE ts < now() - interval 30 day'",
+        );
+    }
+
+    #[test]
+    fn athena_patterns_match_with_global_flags_before_service() {
+        // Regression: the AWS CLI accepts global flags like `--profile`,
+        // `--region`, `--debug` BEFORE the service name. If those break
+        // the pattern, an attacker (or any normal user with a multi-profile
+        // setup) can evade the block entirely with
+        // `aws --profile prod athena start-query-execution ...`.
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "aws --profile prod athena start-query-execution --query-string 'DROP DATABASE critical'",
+            "DROP DATABASE",
+        );
+        assert_blocks(
+            &pack,
+            "aws --region us-east-1 --profile prod athena start-query-execution --query-string 'DROP TABLE t'",
+            "DROP TABLE",
+        );
+        assert_blocks(
+            &pack,
+            "aws --debug glue delete-database --name analytics",
+            "delete-database",
+        );
+        assert_blocks(
+            &pack,
+            "aws --profile prod --region us-east-1 glue batch-delete-table --database-name x --tables-to-delete foo bar",
+            "batch-delete-table",
+        );
+        assert_blocks(
+            &pack,
+            "aws --output json athena delete-data-catalog --name my_catalog",
+            "delete-data-catalog",
         );
     }
 
