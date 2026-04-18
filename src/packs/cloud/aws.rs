@@ -475,17 +475,23 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "s3api-delete-object",
-            r"aws\b.*?\bs3api\s+delete-object\b",
-            "aws s3api delete-object deletes an S3 object — object is gone unless bucket versioning is enabled.",
+            // No `\b` after `delete-object` so the same rule catches
+            // `delete-object` (single), `delete-objects` (batch, arguably
+            // WORSE because it can drop thousands at once), and
+            // `delete-object-tagging` (metadata removal). All three are
+            // destructive and share the same guidance.
+            r"aws\b.*?\bs3api\s+delete-object",
+            "aws s3api delete-object[s]/delete-object-tagging — object(s) or tags are gone unless bucket versioning is enabled.",
             High,
-            "delete-object removes a single S3 object:\n\n\
-             - Without bucket versioning: object is permanently gone\n\
-             - With versioning: a delete marker is added; past versions recoverable\n\
+            "delete-object / delete-objects / delete-object-tagging:\n\n\
+             - Without bucket versioning: objects or tags are permanently gone\n\
+             - With versioning (objects only): a delete marker is added; past versions recoverable\n\
+             - delete-objects is BATCH (up to 1000 keys per call) — a misfire can wipe thousands\n\
              - No trash/recycle bin\n\n\
              Check versioning first:\n  \
              aws s3api get-bucket-versioning --bucket xxx\n\n\
-             Preview the object:\n  \
-             aws s3api head-object --bucket xxx --key yyy"
+             Preview the keys about to be deleted:\n  \
+             aws s3api list-objects-v2 --bucket xxx --prefix yyy/"
         ),
 
         // ---- Athena catalog / workgroup deletions ---------------------------
@@ -831,7 +837,19 @@ mod tests {
         assert_blocks(
             &pack,
             "aws s3api delete-object --bucket prod-logs --key critical.log",
-            "S3 object",
+            "object",
+        );
+        // S3 delete-objects (batch) — same rule should fire.
+        assert_blocks(
+            &pack,
+            "aws s3api delete-objects --bucket prod-logs --delete file://keys.json",
+            "object",
+        );
+        // S3 delete-object-tagging — metadata loss, same rule.
+        assert_blocks(
+            &pack,
+            "aws s3api delete-object-tagging --bucket prod-logs --key prod.log",
+            "object",
         );
         // And all of the above still block through global flags / wrappers:
         assert_blocks(
