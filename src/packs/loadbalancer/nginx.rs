@@ -95,7 +95,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "nginx-config-delete",
-            r"\brm\b.*\s+/etc/nginx(?:/|\b)",
+            r#"\brm\b.*\s+['"]?/etc/nginx(?:/|\b)"#,
             "Removing files from /etc/nginx deletes nginx configuration.",
             Critical,
             "Deleting nginx configuration files removes site definitions, upstream \
@@ -165,6 +165,21 @@ mod tests {
         assert!(
             pack.check("systemctl -H host status nginx").is_none(),
             "status with global flag should short-circuit as safe"
+        );
+    }
+
+    #[test]
+    fn quoted_path_does_not_bypass_rm() {
+        let pack = create_pack();
+        assert_blocks_with_pattern(
+            &pack,
+            "rm -f \"/etc/nginx/nginx.conf\"",
+            "nginx-config-delete",
+        );
+        assert_blocks_with_pattern(
+            &pack,
+            "rm -rf '/etc/nginx/sites-available/'",
+            "nginx-config-delete",
         );
     }
 }

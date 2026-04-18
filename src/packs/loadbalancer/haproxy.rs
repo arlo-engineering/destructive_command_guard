@@ -93,7 +93,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Config file deletion
         destructive_pattern!(
             "haproxy-config-delete",
-            r"\brm\b.*\s+/etc/haproxy(?:/|\b)",
+            r#"\brm\b.*\s+['"]?/etc/haproxy(?:/|\b)"#,
             "Removing files from /etc/haproxy deletes HAProxy configuration."
         ),
     ]
