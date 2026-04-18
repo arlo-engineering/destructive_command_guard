@@ -273,79 +273,79 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // -- Database read-only operations --
-        safe_pattern!("supabase-db-diff", r"supabase\s+db\s+diff"),
-        safe_pattern!("supabase-db-lint", r"supabase\s+db\s+lint"),
-        safe_pattern!("supabase-db-dump", r"supabase\s+db\s+dump"),
-        safe_pattern!("supabase-db-shell-safe", r"(?i)supabase\s+db\s+shell\s*$"),
-        safe_pattern!("supabase-inspect-db", r"supabase\s+inspect\s+db"),
+        safe_pattern!("supabase-db-diff", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+diff"),
+        safe_pattern!("supabase-db-lint", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+lint"),
+        safe_pattern!("supabase-db-dump", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+dump"),
+        safe_pattern!("supabase-db-shell-safe", r"(?i)supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+shell\s*$"),
+        safe_pattern!("supabase-inspect-db", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+inspect\s+db"),
         // -- Status & info --
-        safe_pattern!("supabase-status", r"supabase\s+status"),
-        safe_pattern!("supabase-start", r"supabase\s+start"),
-        safe_pattern!("supabase-services", r"supabase\s+services"),
-        safe_pattern!("supabase-gen-types", r"supabase\s+gen\s+types"),
-        safe_pattern!("supabase-test-db", r"supabase\s+test\s+db"),
+        safe_pattern!("supabase-status", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+status"),
+        safe_pattern!("supabase-start", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+start"),
+        safe_pattern!("supabase-services", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+services"),
+        safe_pattern!("supabase-gen-types", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+gen\s+types"),
+        safe_pattern!("supabase-test-db", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+test\s+db"),
         // -- Migrations read-only --
-        safe_pattern!("supabase-migration-list", r"supabase\s+migration\s+list"),
-        safe_pattern!("supabase-migration-new", r"supabase\s+migration\s+new"),
-        safe_pattern!("supabase-migration-fetch", r"supabase\s+migration\s+fetch"),
+        safe_pattern!("supabase-migration-list", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+migration\s+list"),
+        safe_pattern!("supabase-migration-new", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+migration\s+new"),
+        safe_pattern!("supabase-migration-fetch", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+migration\s+fetch"),
         // supabase db push --dry-run (anywhere in args) is safe
         safe_pattern!(
             "supabase-db-push-dry-run",
-            r"supabase\s+db\s+push\b.*--dry-run"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+push\b.*--dry-run"
         ),
         // -- Functions read-only --
-        safe_pattern!("supabase-functions-list", r"supabase\s+functions\s+list"),
-        safe_pattern!("supabase-functions-serve", r"supabase\s+functions\s+serve"),
+        safe_pattern!("supabase-functions-list", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+functions\s+list"),
+        safe_pattern!("supabase-functions-serve", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+functions\s+serve"),
         safe_pattern!(
             "supabase-functions-download",
-            r"supabase\s+functions\s+download"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+functions\s+download"
         ),
-        safe_pattern!("supabase-functions-new", r"supabase\s+functions\s+new"),
+        safe_pattern!("supabase-functions-new", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+functions\s+new"),
         // -- Secrets read-only --
-        safe_pattern!("supabase-secrets-list", r"supabase\s+secrets\s+list"),
+        safe_pattern!("supabase-secrets-list", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+secrets\s+list"),
         // -- Storage read-only --
-        safe_pattern!("supabase-storage-ls", r"supabase\s+storage\s+ls"),
+        safe_pattern!("supabase-storage-ls", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+ls"),
         // -- Projects/Orgs read-only --
-        safe_pattern!("supabase-projects-list", r"supabase\s+projects\s+list"),
-        safe_pattern!("supabase-orgs-list", r"supabase\s+orgs\s+list"),
+        safe_pattern!("supabase-projects-list", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+projects\s+list"),
+        safe_pattern!("supabase-orgs-list", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+orgs\s+list"),
         // -- Branches read-only --
-        safe_pattern!("supabase-branches-list", r"supabase\s+branches\s+list"),
-        safe_pattern!("supabase-branches-get", r"supabase\s+branches\s+get"),
+        safe_pattern!("supabase-branches-list", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+branches\s+list"),
+        safe_pattern!("supabase-branches-get", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+branches\s+get"),
         // -- Domains read-only --
-        safe_pattern!("supabase-domains-get", r"supabase\s+domains\s+get"),
+        safe_pattern!("supabase-domains-get", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+domains\s+get"),
         safe_pattern!(
             "supabase-domains-reverify",
-            r"supabase\s+domains\s+reverify"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+domains\s+reverify"
         ),
         safe_pattern!(
             "supabase-vanity-subdomains-get",
-            r"supabase\s+vanity-subdomains\s+get"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+vanity-subdomains\s+get"
         ),
         safe_pattern!(
             "supabase-vanity-subdomains-check",
-            r"supabase\s+vanity-subdomains\s+check-availability"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+vanity-subdomains\s+check-availability"
         ),
         // -- SSO read-only --
-        safe_pattern!("supabase-sso-list", r"supabase\s+sso\s+list"),
-        safe_pattern!("supabase-sso-show", r"supabase\s+sso\s+show"),
-        safe_pattern!("supabase-sso-info", r"supabase\s+sso\s+info"),
+        safe_pattern!("supabase-sso-list", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+sso\s+list"),
+        safe_pattern!("supabase-sso-show", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+sso\s+show"),
+        safe_pattern!("supabase-sso-info", r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+sso\s+info"),
         // -- Network/SSL read-only --
         safe_pattern!(
             "supabase-network-restrictions-get",
-            r"supabase\s+network-restrictions\s+get"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+network-restrictions\s+get"
         ),
         safe_pattern!(
             "supabase-network-bans-get",
-            r"supabase\s+network-bans\s+get"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+network-bans\s+get"
         ),
         safe_pattern!(
             "supabase-ssl-enforcement-get",
-            r"supabase\s+ssl-enforcement\s+get"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+ssl-enforcement\s+get"
         ),
         // -- Postgres config read-only --
         safe_pattern!(
             "supabase-postgres-config-get",
-            r"supabase\s+postgres-config\s+get"
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+postgres-config\s+get"
         ),
     ]
 }
@@ -363,7 +363,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase db reset — drops and recreates the database
         destructive_pattern!(
             "supabase-db-reset",
-            r"supabase\s+db\s+reset",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+reset",
             "supabase db reset drops and recreates the entire database. All data will be lost.",
             Critical,
             "supabase db reset completely destroys and recreates your database:\n\n\
@@ -382,7 +382,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase db push — pushes migrations to remote
         destructive_pattern!(
             "supabase-db-push",
-            r"supabase\s+db\s+push",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+push",
             "supabase db push applies migrations to the remote database. Use --dry-run to preview first.",
             Critical,
             "supabase db push applies pending migrations to the remote (linked) database:\n\n\
@@ -398,7 +398,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase db shell with destructive SQL (DROP/TRUNCATE/DELETE/ALTER)
         destructive_pattern!(
             "supabase-db-shell-destructive",
-            r"(?i)supabase\s+db\s+shell\s+.*\b(DROP|TRUNCATE|DELETE|ALTER)\b",
+            r"(?i)supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+db\s+shell\s+.*\b(DROP|TRUNCATE|DELETE|ALTER)\b",
             "supabase db shell with destructive SQL (DROP/TRUNCATE/DELETE/ALTER). Verify the command carefully.",
             High,
             "supabase db shell is being invoked with destructive SQL:\n\n\
@@ -419,7 +419,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase migration repair — modifies migration history
         destructive_pattern!(
             "supabase-migration-repair",
-            r"supabase\s+migration\s+repair",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+migration\s+repair",
             "supabase migration repair modifies the migration history. This can cause drift between schema and migrations.",
             Critical,
             "supabase migration repair alters the migration history table:\n\n\
@@ -435,7 +435,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase migration down — reverts applied migrations
         destructive_pattern!(
             "supabase-migration-down",
-            r"supabase\s+migration\s+down",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+migration\s+down",
             "supabase migration down reverts applied migrations. Schema changes and associated data may be lost.",
             Critical,
             "supabase migration down reverts previously applied migrations:\n\n\
@@ -452,7 +452,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase migration squash — consolidates migrations, loses DML
         destructive_pattern!(
             "supabase-migration-squash",
-            r"supabase\s+migration\s+squash",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+migration\s+squash",
             "supabase migration squash consolidates migrations and omits data manipulation statements (INSERT/UPDATE/DELETE).",
             High,
             "supabase migration squash consolidates multiple migration files into one:\n\n\
@@ -473,7 +473,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase functions delete — removes a deployed edge function
         destructive_pattern!(
             "supabase-functions-delete",
-            r"supabase\s+functions\s+delete",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+functions\s+delete",
             "supabase functions delete removes a deployed Edge Function. This causes immediate downtime for that function.",
             High,
             "supabase functions delete permanently removes a deployed Edge Function:\n\n\
@@ -493,7 +493,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase storage rm — deletes storage objects
         destructive_pattern!(
             "supabase-storage-rm",
-            r"supabase\s+storage\s+rm",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+rm",
             "supabase storage rm deletes objects from storage. With --recursive, entire directories are removed.",
             High,
             "supabase storage rm permanently deletes objects from Supabase Storage:\n\n\
@@ -513,7 +513,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase secrets unset — removes project secrets
         destructive_pattern!(
             "supabase-secrets-unset",
-            r"supabase\s+secrets\s+unset",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+secrets\s+unset",
             "supabase secrets unset removes secrets from the project. Edge Functions depending on them will break immediately.",
             High,
             "supabase secrets unset removes environment variables from the project:\n\n\
@@ -531,7 +531,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase projects delete
         destructive_pattern!(
             "supabase-projects-delete",
-            r"supabase\s+projects\s+delete",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+projects\s+delete",
             "supabase projects delete permanently removes the entire Supabase project and all its data.",
             Critical,
             "supabase projects delete permanently removes a Supabase project:\n\n\
@@ -550,7 +550,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase orgs delete
         destructive_pattern!(
             "supabase-orgs-delete",
-            r"supabase\s+orgs\s+delete",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+orgs\s+delete",
             "supabase orgs delete permanently removes the organization and may affect all projects within it.",
             High,
             "supabase orgs delete permanently removes a Supabase organization:\n\n\
@@ -567,7 +567,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase branches delete — removes a database branch
         destructive_pattern!(
             "supabase-branches-delete",
-            r"supabase\s+branches\s+delete",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+branches\s+delete",
             "supabase branches delete permanently removes a preview branch and its database.",
             High,
             "supabase branches delete permanently removes a preview database branch:\n\n\
@@ -587,7 +587,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase domains delete — removes custom domain
         destructive_pattern!(
             "supabase-domains-delete",
-            r"supabase\s+domains\s+delete",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+domains\s+delete",
             "supabase domains delete removes the custom domain configuration. Clients using the custom domain will lose access.",
             High,
             "supabase domains delete removes the custom hostname configuration:\n\n\
@@ -601,7 +601,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase vanity-subdomains delete — removes vanity subdomain
         destructive_pattern!(
             "supabase-vanity-subdomains-delete",
-            r"supabase\s+vanity-subdomains\s+delete",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+vanity-subdomains\s+delete",
             "supabase vanity-subdomains delete removes the vanity subdomain. Clients using it will lose access.",
             High,
             "supabase vanity-subdomains delete removes the vanity subdomain:\n\n\
@@ -615,7 +615,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase network-restrictions update — can lock out DB connections
         destructive_pattern!(
             "supabase-network-restrictions-update",
-            r"supabase\s+network-restrictions\s+update",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+network-restrictions\s+update",
             "supabase network-restrictions update modifies allowed CIDR ranges. Misconfiguration can lock out all database connections.",
             High,
             "supabase network-restrictions update modifies the database firewall rules:\n\n\
@@ -633,7 +633,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase sso remove — locks out SSO users
         destructive_pattern!(
             "supabase-sso-remove",
-            r"supabase\s+sso\s+remove",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+sso\s+remove",
             "supabase sso remove disconnects an SSO identity provider. All users authenticating via that provider will be locked out.",
             Critical,
             "supabase sso remove disconnects an SSO identity provider:\n\n\
@@ -653,7 +653,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase config push — overwrites remote project config
         destructive_pattern!(
             "supabase-config-push",
-            r"supabase\s+config\s+push",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+config\s+push",
             "supabase config push overwrites the remote project configuration with local config.toml settings.",
             High,
             "supabase config push replaces the remote project configuration:\n\n\
@@ -666,7 +666,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // supabase stop --no-backup — deletes local data volumes
         destructive_pattern!(
             "supabase-stop-no-backup",
-            r"supabase\s+stop\b.*--no-backup",
+            r"supabase(?:\s+--?\S+(?:\s+\S+)?)*\s+stop\b.*--no-backup",
             "supabase stop --no-backup stops the local stack and permanently deletes all data volumes.",
             High,
             "supabase stop --no-backup stops the local development stack and deletes data:\n\n\
@@ -1036,5 +1036,30 @@ mod tests {
         // bare stop has no matching destructive pattern — allowed by default
         assert_no_match(&pack, "supabase stop");
         assert_no_match(&pack, "supabase stop --all");
+    }
+
+    #[test]
+    fn test_global_flags_do_not_bypass() {
+        // supabase CLI accepts --debug, --workdir, --experimental, --project-ref.
+        // Old `supabase\s+db\s+reset` would fail when a flag came first.
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "supabase --project-ref abc123 db reset",
+            "db reset",
+        );
+        assert_blocks(
+            &pack,
+            "supabase --debug --workdir . db push",
+            "db push",
+        );
+        assert_blocks(
+            &pack,
+            "supabase --project-ref abc123 functions delete my-fn",
+            "functions delete",
+        );
+        // Safe commands with global flags should still short-circuit.
+        assert_allows(&pack, "supabase --project-ref abc123 db diff");
+        assert_allows(&pack, "supabase --debug status");
     }
 }
