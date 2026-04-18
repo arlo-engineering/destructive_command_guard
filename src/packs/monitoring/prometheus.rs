@@ -65,7 +65,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
     vec![
         destructive_pattern!(
             "prometheus-rules-file-delete",
-            r"\brm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:(?:-f|--force)\s+)?(?:/etc/prometheus/(?:rules\.d|rules)/\S+|/etc/prometheus/(?:prometheus|rules)\.(?:ya?ml))(?:\s|$)",
+            r#"\brm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:(?:-f|--force)\s+)?['"]?(?:/etc/prometheus/(?:rules\.d|rules)/\S+|/etc/prometheus/(?:prometheus|rules)\.(?:ya?ml))['"]?(?:\s|$)"#,
             "Deleting Prometheus rule/config files can break alerting and monitoring coverage.",
             Critical,
             "Deleting Prometheus configuration or rule files stops alerting for the defined \
