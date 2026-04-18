@@ -52,7 +52,7 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // s3 cp is generally safe (copy)
         safe_pattern!("s3-cp", r"aws\b.*?\bs3\s+cp"),
         // dry-run flag
-        safe_pattern!("aws-dry-run", r"aws\s+.*--dry-run"),
+        safe_pattern!("aws-dry-run", r"aws\b.*--dry-run"),
         // sts get-caller-identity is safe
         safe_pattern!("sts-identity", r"aws\b.*?\bsts\s+get-caller-identity"),
         // cloudformation describe/list
