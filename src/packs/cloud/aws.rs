@@ -90,10 +90,19 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // like `DELETE FROM t WHERE id=1; DROP TABLE t`.
         safe_pattern!(
             "athena-delete-with-where",
-            // Table identifier is `\S+` to cover bare names (`t`),
-            // schema-qualified names (`db.t`), and quoted identifiers
-            // (`"my-t"`, `` `my-t` ``) in a single cheap match.
-            r#"(?i)aws\s+athena\s+start-query-execution\b.*?--query-string[=\s]+['"]?\s*DELETE\s+FROM\s+\S+\s+.*?\bWHERE\b(?!.*;)"#
+            // Table identifier is `[^\s;]+` rather than `\S+` — otherwise
+            // a greedy `\S+` absorbs the `;` in `DELETE FROM t; DELETE
+            // FROM u WHERE id=1`, letting the regex slide forward to the
+            // second (scoped) DELETE's WHERE and ALLOWING the leading
+            // unscoped DELETE. Excluding `;` from the identifier forces
+            // the regex to stop at the statement boundary, so the
+            // destructive `athena-query-delete-without-where` rule still
+            // fires on the unscoped head statement.
+            //
+            // The character class still covers bare names (`t`),
+            // schema-qualified names (`db.t`), double-quoted identifiers
+            // (`"my-t"`), and backtick-quoted identifiers (`` `my-t` ``).
+            r#"(?i)aws\s+athena\s+start-query-execution\b.*?--query-string[=\s]+['"]?\s*DELETE\s+FROM\s+[^\s;]+\s+.*?\bWHERE\b(?!.*;)"#
         ),
     ]
 }
@@ -668,6 +677,16 @@ mod tests {
             &pack,
             "aws athena start-query-execution --query-string 'DELETE FROM t WHERE id = 1; DROP TABLE t'",
             "DROP TABLE",
+        );
+        // Regression: unscoped DELETE followed by a scoped DELETE must
+        // NOT be allowed just because the *trailing* statement has a
+        // WHERE clause. Previously `\S+` was greedy enough to absorb the
+        // `;` into the "table name" slot and let the head anchor slide
+        // past it to the later WHERE.
+        assert_blocks(
+            &pack,
+            "aws athena start-query-execution --query-string 'DELETE FROM t; DELETE FROM u WHERE id = 1'",
+            "DELETE without a WHERE clause",
         );
     }
 
