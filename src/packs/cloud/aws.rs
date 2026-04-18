@@ -32,6 +32,16 @@ pub fn create_pack() -> Pack {
             "logs",
             "athena",
             "glue",
+            // Coverage for the additional security/data-critical rules
+            // ensures the pack is selected even for commands whose
+            // service name isn't in the general keyword list.
+            "kms",
+            "secretsmanager",
+            "route53",
+            "cloudtrail",
+            "redshift",
+            "kinesis",
+            "efs",
         ],
         safe_patterns: create_safe_patterns(),
         destructive_patterns: create_destructive_patterns(),
@@ -369,6 +379,115 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              --log-stream-name yyy --limit 100"
         ),
 
+        // ---- Security- and data-critical services uncovered by the
+        //       previous set of AWS rules. ----------------------------------
+        destructive_pattern!(
+            "kms-schedule-key-deletion",
+            r"aws\b.*?\bkms\s+schedule-key-deletion",
+            "aws kms schedule-key-deletion schedules a KMS key for irreversible deletion — all data encrypted with it becomes unreadable.",
+            Critical,
+            "schedule-key-deletion starts an irreversible KMS key destruction:\n\n\
+             - After the waiting period (min 7 days), the key is deleted\n\
+             - Every piece of data encrypted under this key becomes\n  \
+               permanently undecryptable\n\
+             - CancelKeyDeletion can abort within the waiting window\n\
+             - After deletion: data loss is unrecoverable\n\n\
+             Prefer `disable-key` if you want to stop usage reversibly:\n  \
+             aws kms disable-key --key-id xxx"
+        ),
+        destructive_pattern!(
+            "secretsmanager-delete-secret",
+            r"aws\b.*?\bsecretsmanager\s+delete-secret",
+            "aws secretsmanager delete-secret destroys a stored secret — typically irrecoverable credentials.",
+            Critical,
+            "delete-secret removes a Secrets Manager secret:\n\n\
+             - Default 30-day recovery window unless --force-delete-without-recovery\n\
+             - With --force-delete-without-recovery: immediate & unrecoverable\n\
+             - All rotation history, versions, and values are lost\n\
+             - Credentials for production services can become\n  \
+               unrecoverable if not backed up\n\n\
+             Restore during the recovery window:\n  \
+             aws secretsmanager restore-secret --secret-id xxx"
+        ),
+        destructive_pattern!(
+            "route53-delete-hosted-zone",
+            r"aws\b.*?\broute53\s+delete-hosted-zone",
+            "aws route53 delete-hosted-zone removes a DNS zone — domains stop resolving.",
+            Critical,
+            "delete-hosted-zone removes a Route53 hosted zone:\n\n\
+             - All DNS records in the zone are deleted\n\
+             - Domains configured with this zone's nameservers stop resolving\n\
+             - Production traffic can become unroutable immediately\n\
+             - Cannot be undone\n\n\
+             Export records first:\n  \
+             aws route53 list-resource-record-sets --hosted-zone-id xxx > zone-backup.json"
+        ),
+        destructive_pattern!(
+            "cloudtrail-delete-trail",
+            r"aws\b.*?\bcloudtrail\s+delete-trail",
+            "aws cloudtrail delete-trail removes an audit trail — compliance/forensics impact.",
+            Critical,
+            "delete-trail removes a CloudTrail trail:\n\n\
+             - Trail configuration is deleted\n\
+             - Historical log files in S3 are NOT deleted (still queryable)\n\
+             - Future events stop being recorded via this trail\n\
+             - Compliance regimes (SOC2, PCI, HIPAA) may require this trail\n\n\
+             Consider stop-logging if pausing is sufficient:\n  \
+             aws cloudtrail stop-logging --name xxx"
+        ),
+        destructive_pattern!(
+            "redshift-delete-cluster",
+            r"aws\b.*?\bredshift\s+delete-cluster",
+            "aws redshift delete-cluster destroys a Redshift cluster and all loaded data.",
+            Critical,
+            "delete-cluster removes a Redshift cluster:\n\n\
+             - With --skip-final-cluster-snapshot: ALL data is destroyed immediately\n\
+             - Without --skip-final-cluster-snapshot: cluster deleted after final snapshot\n\
+             - Connected BI tools, ETL pipelines, and downstream jobs break\n\
+             - Very expensive to restore (hours of snapshot restore)\n\n\
+             Preview:\n  \
+             aws redshift describe-clusters --cluster-identifier xxx"
+        ),
+        destructive_pattern!(
+            "kinesis-delete-stream",
+            r"aws\b.*?\bkinesis\s+delete-stream",
+            "aws kinesis delete-stream destroys a data stream — in-flight records are lost.",
+            Critical,
+            "delete-stream removes a Kinesis data stream:\n\n\
+             - All shards, consumers, and in-flight records are lost\n\
+             - Producers and consumers disconnect immediately\n\
+             - Data retained only as long as EnhancedMonitoring/FanOut sinks preserved it\n\
+             - Stream name is reserved briefly; re-creation may fail until it clears"
+        ),
+        destructive_pattern!(
+            "efs-delete-file-system",
+            r"aws\b.*?\befs\s+delete-file-system",
+            "aws efs delete-file-system destroys an EFS filesystem — all files and mount targets are lost.",
+            Critical,
+            "delete-file-system removes an EFS filesystem:\n\n\
+             - All files in the filesystem are permanently deleted\n\
+             - Mount targets and access points are removed\n\
+             - Cannot be undone (no built-in recovery)\n\
+             - Take a backup first via AWS Backup or rsync out:\n  \
+             aws backup start-backup-job --backup-vault-name xxx \\\n    \
+             --resource-arn arn:aws:elasticfilesystem:...:file-system/fs-xxx \\\n    \
+             --iam-role-arn arn:aws:iam::...:role/backup-role"
+        ),
+        destructive_pattern!(
+            "s3api-delete-object",
+            r"aws\b.*?\bs3api\s+delete-object\b",
+            "aws s3api delete-object deletes an S3 object — object is gone unless bucket versioning is enabled.",
+            High,
+            "delete-object removes a single S3 object:\n\n\
+             - Without bucket versioning: object is permanently gone\n\
+             - With versioning: a delete marker is added; past versions recoverable\n\
+             - No trash/recycle bin\n\n\
+             Check versioning first:\n  \
+             aws s3api get-bucket-versioning --bucket xxx\n\n\
+             Preview the object:\n  \
+             aws s3api head-object --bucket xxx --key yyy"
+        ),
+
         // ---- Athena catalog / workgroup deletions ---------------------------
         //
         // Every Athena + Glue pattern below uses `aws\b.*?\b<svc>\b` in
@@ -654,6 +773,76 @@ mod tests {
         assert_allows(
             &pack,
             "aws-vault exec prod -- aws ec2 describe-instances",
+        );
+    }
+
+    #[test]
+    fn security_and_data_critical_services_blocked() {
+        // New rules covering AWS services whose delete/destroy APIs can
+        // lose data irreversibly (KMS keys, secrets, DNS zones, audit
+        // trails, Redshift clusters, Kinesis streams, EFS) or cause
+        // significant outages (S3 object deletion).
+        let pack = create_pack();
+
+        // KMS schedule-key-deletion — encryption key destruction,
+        // irreversibly locks out all data encrypted under the key.
+        assert_blocks(
+            &pack,
+            "aws kms schedule-key-deletion --key-id arn:aws:kms:us-east-1:111:key/abc --pending-window-in-days 7",
+            "KMS key",
+        );
+        // Secrets Manager delete-secret — credential loss.
+        assert_blocks(
+            &pack,
+            "aws secretsmanager delete-secret --secret-id prod/db/password --force-delete-without-recovery",
+            "stored secret",
+        );
+        // Route53 delete-hosted-zone — DNS outage.
+        assert_blocks(
+            &pack,
+            "aws route53 delete-hosted-zone --id Z1234567890",
+            "DNS zone",
+        );
+        // CloudTrail delete-trail — compliance/forensics.
+        assert_blocks(
+            &pack,
+            "aws cloudtrail delete-trail --name prod-audit",
+            "audit trail",
+        );
+        // Redshift delete-cluster — large-scale data loss.
+        assert_blocks(
+            &pack,
+            "aws redshift delete-cluster --cluster-identifier prod-analytics --skip-final-cluster-snapshot",
+            "Redshift cluster",
+        );
+        // Kinesis delete-stream — data stream loss.
+        assert_blocks(
+            &pack,
+            "aws kinesis delete-stream --stream-name prod-events",
+            "data stream",
+        );
+        // EFS delete-file-system — filesystem data loss.
+        assert_blocks(
+            &pack,
+            "aws efs delete-file-system --file-system-id fs-abc12345",
+            "EFS filesystem",
+        );
+        // S3 delete-object — targeted object deletion.
+        assert_blocks(
+            &pack,
+            "aws s3api delete-object --bucket prod-logs --key critical.log",
+            "S3 object",
+        );
+        // And all of the above still block through global flags / wrappers:
+        assert_blocks(
+            &pack,
+            "aws --profile prod kms schedule-key-deletion --key-id abc",
+            "KMS key",
+        );
+        assert_blocks(
+            &pack,
+            "aws-vault exec prod -- aws secretsmanager delete-secret --secret-id prod/db",
+            "stored secret",
         );
     }
 

@@ -30,6 +30,13 @@ Commands containing these keywords are checked against this pack:
 - `logs`
 - `athena`
 - `glue`
+- `kms`
+- `secretsmanager`
+- `route53`
+- `cloudtrail`
+- `redshift`
+- `kinesis`
+- `efs`
 
 ### Safe Patterns (Allowed)
 
@@ -70,6 +77,14 @@ These patterns match potentially destructive commands:
 | `ecr-delete-lifecycle-policy` | aws ecr delete-lifecycle-policy removes the repository lifecycle policy. | medium |
 | `logs-delete-log-group` | aws logs delete-log-group permanently deletes a log group and all events. | high |
 | `logs-delete-log-stream` | aws logs delete-log-stream permanently deletes a log stream and all events. | high |
+| `kms-schedule-key-deletion` | aws kms schedule-key-deletion schedules a KMS key for irreversible deletion — all data encrypted with it becomes unreadable. | critical |
+| `secretsmanager-delete-secret` | aws secretsmanager delete-secret destroys a stored secret — typically irrecoverable credentials. | critical |
+| `route53-delete-hosted-zone` | aws route53 delete-hosted-zone removes a DNS zone — domains stop resolving. | critical |
+| `cloudtrail-delete-trail` | aws cloudtrail delete-trail removes an audit trail — compliance/forensics impact. | critical |
+| `redshift-delete-cluster` | aws redshift delete-cluster destroys a Redshift cluster and all loaded data. | critical |
+| `kinesis-delete-stream` | aws kinesis delete-stream destroys a data stream — in-flight records are lost. | critical |
+| `efs-delete-file-system` | aws efs delete-file-system destroys an EFS filesystem — all files and mount targets are lost. | critical |
+| `s3api-delete-object` | aws s3api delete-object deletes an S3 object — object is gone unless bucket versioning is enabled. | high |
 | `athena-delete-data-catalog` | aws athena delete-data-catalog removes the catalog and all database/table definitions tied to it. | critical |
 | `athena-delete-work-group` | aws athena delete-work-group removes the Athena workgroup and its configuration. | high |
 | `athena-delete-named-query` | aws athena delete-named-query permanently removes a saved query. | medium |
