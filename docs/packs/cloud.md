@@ -54,20 +54,20 @@ These patterns match potentially destructive commands:
 
 | Pattern Name | Reason | Severity |
 |--------------|--------|----------|
-| `ec2-terminate` | aws ec2 terminate-instances permanently destroys EC2 instances. | high |
+| `ec2-terminate` | aws ec2 terminate-instances permanently destroys EC2 instances. | critical |
 | `removes AWS resources` | aws ec2 delete-* permanently removes AWS resources. | high |
-| `s3-rm-recursive` | aws s3 rm --recursive permanently deletes all objects in the path. | high |
-| `s3-rb` | aws s3 rb removes the entire S3 bucket. | high |
-| `s3api-delete-bucket` | aws s3api delete-bucket removes the entire S3 bucket. | high |
-| `rds-delete` | aws rds delete-db-instance/cluster permanently destroys the database. | high |
-| `cfn-delete-stack` | aws cloudformation delete-stack removes the entire stack and its resources. | high |
-| `lambda-delete` | aws lambda delete-function permanently removes the Lambda function. | high |
+| `s3-rm-recursive` | aws s3 rm --recursive permanently deletes all objects in the path. | critical |
+| `s3-rb` | aws s3 rb removes the entire S3 bucket. | critical |
+| `s3api-delete-bucket` | aws s3api delete-bucket removes the entire S3 bucket. | critical |
+| `rds-delete` | aws rds delete-* permanently destroys the database resource (instance, cluster, snapshot, parameter group, subnet group, etc.). | critical |
+| `cfn-delete-stack` | aws cloudformation delete-stack removes the entire stack and its resources. | critical |
+| `lambda-delete` | aws lambda delete-* permanently removes a Lambda resource (function, alias, layer version, event source mapping, etc.). | high |
 | `iam-delete` | aws iam delete-* removes IAM resources. Verify dependencies first. | high |
-| `dynamodb-delete` | aws dynamodb delete-table permanently deletes the table and all data. | high |
-| `eks-delete` | aws eks delete-cluster removes the entire EKS cluster. | high |
+| `dynamodb-delete` | aws dynamodb delete-table permanently deletes the table and all data. | critical |
+| `eks-delete` | aws eks delete-cluster removes the entire EKS cluster. | critical |
 | `ecr-delete-repository` | aws ecr delete-repository permanently deletes the repository and its images. | high |
 | `ecr-batch-delete-image` | aws ecr batch-delete-image permanently deletes one or more images. | high |
-| `ecr-delete-lifecycle-policy` | aws ecr delete-lifecycle-policy removes the repository lifecycle policy. | high |
+| `ecr-delete-lifecycle-policy` | aws ecr delete-lifecycle-policy removes the repository lifecycle policy. | medium |
 | `logs-delete-log-group` | aws logs delete-log-group permanently deletes a log group and all events. | high |
 | `logs-delete-log-stream` | aws logs delete-log-stream permanently deletes a log stream and all events. | high |
 | `athena-delete-data-catalog` | aws athena delete-data-catalog removes the catalog and all database/table definitions tied to it. | critical |
