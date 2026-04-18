@@ -28,26 +28,26 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // list/status/history are safe (read-only)
-        safe_pattern!("helm-list", r"helm\s+list"),
-        safe_pattern!("helm-status", r"helm\s+status"),
-        safe_pattern!("helm-history", r"helm\s+history"),
+        safe_pattern!("helm-list", r"helm\b.*?\s+list\b"),
+        safe_pattern!("helm-status", r"helm\b.*?\s+status\b"),
+        safe_pattern!("helm-history", r"helm\b.*?\s+history\b"),
         // show/inspect are safe (read-only)
-        safe_pattern!("helm-show", r"helm\s+show"),
-        safe_pattern!("helm-inspect", r"helm\s+inspect"),
+        safe_pattern!("helm-show", r"helm\b.*?\s+show\b"),
+        safe_pattern!("helm-inspect", r"helm\b.*?\s+inspect\b"),
         // get is safe (read-only)
-        safe_pattern!("helm-get", r"helm\s+get"),
+        safe_pattern!("helm-get", r"helm\b.*?\s+get\b"),
         // search is safe
-        safe_pattern!("helm-search", r"helm\s+search"),
+        safe_pattern!("helm-search", r"helm\b.*?\s+search\b"),
         // repo operations are generally safe
-        safe_pattern!("helm-repo", r"helm\s+repo"),
+        safe_pattern!("helm-repo", r"helm\b.*?\s+repo\b"),
         // dry-run flags
-        safe_pattern!("helm-dry-run", r"helm\s+.*--dry-run"),
+        safe_pattern!("helm-dry-run", r"helm\b.*--dry-run"),
         // template only generates manifests
-        safe_pattern!("helm-template", r"helm\s+template"),
+        safe_pattern!("helm-template", r"helm\b.*?\s+template\b"),
         // lint is safe (validation)
-        safe_pattern!("helm-lint", r"helm\s+lint"),
+        safe_pattern!("helm-lint", r"helm\b.*?\s+lint\b"),
         // diff plugin is safe
-        safe_pattern!("helm-diff", r"helm\s+diff"),
+        safe_pattern!("helm-diff", r"helm\b.*?\s+diff\b"),
     ]
 }
 
@@ -56,7 +56,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // uninstall / delete
         destructive_pattern!(
             "uninstall",
-            r"helm\s+(?:uninstall|delete)\b(?!.*--dry-run)",
+            r"helm\b.*?\b(?:uninstall|delete)\b(?!.*--dry-run)",
             "helm uninstall removes the release and all its resources. Use --dry-run first.",
             Critical,
             "helm uninstall deletes the release and ALL Kubernetes resources created by it:\n\n\
@@ -73,7 +73,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // rollback without dry-run
         destructive_pattern!(
             "rollback",
-            r"helm\s+rollback\b(?!.*--dry-run)",
+            r"helm\b.*?\brollback\b(?!.*--dry-run)",
             "helm rollback reverts to a previous release. Use --dry-run to preview changes.",
             High,
             "helm rollback reverts the release to a previous revision. This can cause unexpected \
@@ -90,7 +90,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // upgrade --force
         destructive_pattern!(
             "upgrade-force",
-            r"helm\s+upgrade\s+.*--force",
+            r"helm\b.*?\bupgrade\s+.*--force",
             "helm upgrade --force deletes and recreates resources, causing downtime.",
             High,
             "The --force flag causes Helm to delete and recreate resources instead of updating \
@@ -107,7 +107,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // upgrade --reset-values
         destructive_pattern!(
             "upgrade-reset-values",
-            r"helm\s+upgrade\s+.*--reset-values",
+            r"helm\b.*?\bupgrade\s+.*--reset-values",
             "helm upgrade --reset-values discards all previously set values.",
             High,
             "The --reset-values flag discards all values from previous releases, using only \
