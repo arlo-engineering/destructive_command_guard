@@ -29,34 +29,34 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // List operations
-        safe_pattern!("mc-ls", r"\bmc\s+(?:--\S+\s+)*ls\b"),
+        safe_pattern!("mc-ls", r"\bmc\s+(?:--?\S+\s+)*ls\b"),
         // Read operations
-        safe_pattern!("mc-cat", r"\bmc\s+(?:--\S+\s+)*cat\b"),
-        safe_pattern!("mc-head", r"\bmc\s+(?:--\S+\s+)*head\b"),
-        safe_pattern!("mc-stat", r"\bmc\s+(?:--\S+\s+)*stat\b"),
+        safe_pattern!("mc-cat", r"\bmc\s+(?:--?\S+\s+)*cat\b"),
+        safe_pattern!("mc-head", r"\bmc\s+(?:--?\S+\s+)*head\b"),
+        safe_pattern!("mc-stat", r"\bmc\s+(?:--?\S+\s+)*stat\b"),
         // Copy operations (non-destructive)
-        safe_pattern!("mc-cp", r"\bmc\s+(?:--\S+\s+)*cp\b"),
+        safe_pattern!("mc-cp", r"\bmc\s+(?:--?\S+\s+)*cp\b"),
         // Diff/compare
-        safe_pattern!("mc-diff", r"\bmc\s+(?:--\S+\s+)*diff\b"),
+        safe_pattern!("mc-diff", r"\bmc\s+(?:--?\S+\s+)*diff\b"),
         // Find
-        safe_pattern!("mc-find", r"\bmc\s+(?:--\S+\s+)*find\b"),
+        safe_pattern!("mc-find", r"\bmc\s+(?:--?\S+\s+)*find\b"),
         // Disk usage
-        safe_pattern!("mc-du", r"\bmc\s+(?:--\S+\s+)*du\b"),
+        safe_pattern!("mc-du", r"\bmc\s+(?:--?\S+\s+)*du\b"),
         // Version/help
-        safe_pattern!("mc-version", r"\bmc\s+(?:--\S+\s+)*version\b"),
-        safe_pattern!("mc-help", r"\bmc\s+(?:--\S+\s+)*(?:--help|-h)\b"),
+        safe_pattern!("mc-version", r"\bmc\s+(?:--?\S+\s+)*version\b"),
+        safe_pattern!("mc-help", r"\bmc\s+(?:--?\S+\s+)*(?:--help|-h)\b"),
         // Admin info (read-only)
-        safe_pattern!("mc-admin-info", r"\bmc\s+(?:--\S+\s+)*admin\s+info\b"),
+        safe_pattern!("mc-admin-info", r"\bmc\s+(?:--?\S+\s+)*admin\s+info\b"),
         safe_pattern!(
             "mc-admin-user-list",
-            r"\bmc\s+(?:--\S+\s+)*admin\s+user\s+list\b"
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+user\s+list\b"
         ),
         safe_pattern!(
             "mc-admin-policy-list",
-            r"\bmc\s+(?:--\S+\s+)*admin\s+policy\s+list\b"
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+policy\s+list\b"
         ),
         // Alias management (config, not data)
-        safe_pattern!("mc-alias-list", r"\bmc\s+(?:--\S+\s+)*alias\s+list\b"),
+        safe_pattern!("mc-alias-list", r"\bmc\s+(?:--?\S+\s+)*alias\s+list\b"),
     ]
 }
 
@@ -65,7 +65,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Bucket removal
         destructive_pattern!(
             "mc-rb",
-            r"\bmc\s+(?:--\S+\s+)*rb\b",
+            r"\bmc\s+(?:--?\S+\s+)*rb\b",
             "mc rb removes a MinIO bucket.",
             Critical,
             "Removing a MinIO bucket deletes the bucket and all objects within it. With \
@@ -79,7 +79,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Object removal
         destructive_pattern!(
             "mc-rm",
-            r"\bmc\s+(?:--\S+\s+)*rm\b",
+            r"\bmc\s+(?:--?\S+\s+)*rm\b",
             "mc rm deletes objects from MinIO.",
             High,
             "Deleting MinIO objects permanently removes data unless versioning is enabled. \
@@ -93,7 +93,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Admin bucket delete
         destructive_pattern!(
             "mc-admin-bucket-delete",
-            r"\bmc\s+(?:--\S+\s+)*admin\s+bucket\s+(?:delete|remove)\b",
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+bucket\s+(?:delete|remove)\b",
             "mc admin bucket delete removes a bucket via admin API.",
             Critical,
             "The admin bucket delete command bypasses normal bucket deletion restrictions. \
@@ -107,7 +107,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Mirror with remove (sync with delete)
         destructive_pattern!(
             "mc-mirror-remove",
-            r"\bmc\s+(?:--\S+\s+)*mirror\b.*--remove\b",
+            r"\bmc\s+(?:--?\S+\s+)*mirror\b.*--remove\b",
             "mc mirror --remove deletes destination objects not in source.",
             High,
             "The --remove flag deletes objects from the destination that don't exist in \
@@ -121,7 +121,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Admin user remove
         destructive_pattern!(
             "mc-admin-user-remove",
-            r"\bmc\s+(?:--\S+\s+)*admin\s+user\s+(?:remove|disable)\b",
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+user\s+(?:remove|disable)\b",
             "mc admin user remove/disable affects user access.",
             High,
             "Removing or disabling a MinIO user revokes their access to all buckets and \
@@ -135,7 +135,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Admin policy remove
         destructive_pattern!(
             "mc-admin-policy-remove",
-            r"\bmc\s+(?:--\S+\s+)*admin\s+policy\s+(?:remove|unset)\b",
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+policy\s+(?:remove|unset)\b",
             "mc admin policy remove/unset modifies access policies.",
             Medium,
             "Removing or unsetting a policy affects all users and groups assigned to it. \
@@ -252,5 +252,14 @@ mod tests {
             "mc admin policy unset myminio policyname",
             "mc-admin-policy-remove",
         );
+    }
+
+    #[test]
+    fn single_dash_flag_does_not_bypass() {
+        // mc supports `-q` (quiet), `-j` (json output). The old
+        // `(?:--\S+\s+)*` required `--` so single-dash forms fell through.
+        let pack = create_pack();
+        assert_blocks_with_pattern(&pack, "mc -q rb myminio/bucket", "mc-rb");
+        assert_blocks_with_pattern(&pack, "mc -j rm myminio/bucket/file", "mc-rm");
     }
 }
