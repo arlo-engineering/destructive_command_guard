@@ -27,42 +27,45 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
-    // Each safe pattern carries a negative lookahead that refuses to match when
-    // ANY destructive Redis keyword is also present in the command. Without
-    // this, a compound command like `redis-cli FLUSHALL && redis-cli GET key`
-    // would be whitelisted by the safe `GET` match and skip the destructive
-    // FLUSHALL check. The forbidden set mirrors the destructive patterns below.
+    // Each safe pattern carries a start-anchored negative lookahead that refuses
+    // to match when ANY destructive Redis keyword is also present in the
+    // command. Without this anchor, the lookahead only checks AFTER the current
+    // match position, so a compound command like
+    //   redis-cli FLUSHALL && redis-cli GET key
+    // could still match the safe `GET` when evaluated starting at the `&&`.
+    // The start anchor forces the lookahead to scan from position 0 of the
+    // entire command.
     vec![
         // GET/MGET operations are safe
         safe_pattern!(
             "redis-get",
-            r"(?i)(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b)\b(?:GET|MGET)\b"
+            r"(?i)^(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b).*\b(?:GET|MGET)\b"
         ),
         // SCAN is safe (cursor-based iteration)
         safe_pattern!(
             "redis-scan",
-            r"(?i)(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b)\bSCAN\b"
+            r"(?i)^(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b).*\bSCAN\b"
         ),
         // INFO is safe (server info)
         safe_pattern!(
             "redis-info",
-            r"(?i)(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b)\bINFO\b"
+            r"(?i)^(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b).*\bINFO\b"
         ),
         // KEYS (read-only, though potentially slow)
         safe_pattern!(
             "redis-keys",
-            r"(?i)(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b)\bKEYS\b"
+            r"(?i)^(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b).*\bKEYS\b"
         ),
         // DBSIZE is safe
         safe_pattern!(
             "redis-dbsize",
-            r"(?i)(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b)\bDBSIZE\b"
+            r"(?i)^(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b).*\bDBSIZE\b"
         ),
         // CONFIG GET is read-only (only meaningful if no destructive CONFIG SET).
         // The negative lookahead already filters CONFIG SET/REWRITE.
         safe_pattern!(
             "redis-config-get",
-            r"(?i)(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b)\bCONFIG\s+GET\b"
+            r"(?i)^(?!.*\b(?:FLUSHALL|FLUSHDB|DEBUG|SHUTDOWN|CONFIG\s+(?:SET|REWRITE))\b).*\bCONFIG\s+GET\b"
         ),
     ]
 }
