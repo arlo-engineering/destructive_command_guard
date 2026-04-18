@@ -84,9 +84,11 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             CHMOD_777_SUGGESTIONS
         ),
         // chmod -R on root or system directories
+        // `['"]?` before the leading `/` so quoted variants like
+        // `chmod -R "/etc"` are caught — the shell unquotes to `/etc`.
         destructive_pattern!(
             "chmod-recursive-root",
-            r"chmod\s+(?:.*(?:-[rR]|--recursive)).*\s+/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b",
+            r#"chmod\s+(?:.*(?:-[rR]|--recursive)).*\s+['"]?/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b"#,
             "chmod -R on system directories can break system permissions.",
             Critical,
             "Recursively changing permissions on system directories can render the system \
@@ -99,7 +101,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // chown -R on root or system directories
         destructive_pattern!(
             "chown-recursive-root",
-            r"chown\s+(?:.*(?:-[rR]|--recursive)).*\s+/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b",
+            r#"chown\s+(?:.*(?:-[rR]|--recursive)).*\s+['"]?/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b"#,
             "chown -R on system directories can break system ownership.",
             High,
             "Recursive ownership changes on system directories can disrupt services, \
@@ -152,7 +154,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // setfacl with dangerous patterns
         destructive_pattern!(
             "setfacl-all",
-            r"setfacl\s+.*-[rR].*\s+/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b",
+            r#"setfacl\s+.*-[rR].*\s+['"]?/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b"#,
             "setfacl -R on system directories can modify access control across the filesystem.",
             Critical,
             "Recursively modifying ACLs on system directories changes fine-grained access \

@@ -137,16 +137,17 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             r"dd\s+.*if=/dev/(?:zero|urandom|random).*of=/dev/",
             "dd from /dev/zero or /dev/urandom to a device will WIPE all data!"
         ),
-        // fdisk (partition editing)
+        // fdisk (partition editing).
+        // `['"]?` allows quoted variants like `fdisk "/dev/sda"` to match.
         destructive_pattern!(
             "fdisk-edit",
-            r"fdisk\s+/dev/(?!.*-l)",
+            r#"fdisk\s+['"]?/dev/(?!.*-l)"#,
             "fdisk can modify partition tables and cause data loss."
         ),
         // parted (except print)
         destructive_pattern!(
             "parted-modify",
-            r"parted\s+/dev/\S+\s+(?!print)",
+            r#"parted\s+['"]?/dev/\S+\s+(?!print)"#,
             "parted can modify partition tables and cause data loss."
         ),
         // mkfs (format filesystem)
@@ -176,7 +177,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // losetup can be dangerous
         destructive_pattern!(
             "losetup-device",
-            r"losetup\s+/dev/loop",
+            r#"losetup\s+['"]?/dev/loop"#,
             "losetup modifies loop device associations. Verify before proceeding."
         ),
         // --- mdadm destructive patterns ---
