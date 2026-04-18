@@ -123,3 +123,50 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packs::test_helpers::*;
+
+    #[test]
+    fn helm_patterns_match_with_global_flags() {
+        // Helm global flags (`--kube-context`, `--kubeconfig`,
+        // `--namespace`/`-n`, `--debug`, `--registry-config`, …)
+        // between `helm` and the subcommand broke every `helm\s+<sub>`
+        // pattern until the `helm\b.*?\b<sub>` sweep.
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "helm --kube-context prod uninstall critical-release",
+            "uninstall",
+        );
+        assert_blocks(
+            &pack,
+            "helm --kubeconfig /tmp/prod.yaml delete prod-svc",
+            "uninstall",
+        );
+        assert_blocks(
+            &pack,
+            "helm -n prod rollback critical-release 2",
+            "rollback",
+        );
+        assert_blocks(
+            &pack,
+            "helm --kube-context prod upgrade prod-svc ./chart --force",
+            "force",
+        );
+    }
+
+    #[test]
+    fn helm_safe_patterns_do_not_bypass_via_flag_value() {
+        // Flag-value bypass class: `--get-values`, `--list-all` etc.
+        // must not match safe patterns.  `\s+<sub>\b` form enforces
+        // that the subcommand is preceded by whitespace (not `-`).
+        let pack = create_pack();
+        assert_allows(&pack, "helm list");
+        assert_allows(&pack, "helm --kube-context prod list");
+        assert_allows(&pack, "helm get values prod-release");
+        assert_allows(&pack, "helm status prod-release");
+    }
+}
