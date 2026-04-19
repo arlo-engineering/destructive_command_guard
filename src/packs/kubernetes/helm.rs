@@ -26,28 +26,33 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each read-only subcommand stops a release name that
+    // contains the subcommand keyword as a substring from making a
+    // destructive command short-circuit as safe. Without this anchor,
+    // `helm uninstall get-operator` would match the `helm-get` safe rule
+    // via `get` in `get-operator` and bypass the uninstall check.
     vec![
         // list/status/history are safe (read-only)
-        safe_pattern!("helm-list", r"helm\b.*?\s+list\b"),
-        safe_pattern!("helm-status", r"helm\b.*?\s+status\b"),
-        safe_pattern!("helm-history", r"helm\b.*?\s+history\b"),
+        safe_pattern!("helm-list", r"helm\b.*?\s+list(?=\s|$)"),
+        safe_pattern!("helm-status", r"helm\b.*?\s+status(?=\s|$)"),
+        safe_pattern!("helm-history", r"helm\b.*?\s+history(?=\s|$)"),
         // show/inspect are safe (read-only)
-        safe_pattern!("helm-show", r"helm\b.*?\s+show\b"),
-        safe_pattern!("helm-inspect", r"helm\b.*?\s+inspect\b"),
+        safe_pattern!("helm-show", r"helm\b.*?\s+show(?=\s|$)"),
+        safe_pattern!("helm-inspect", r"helm\b.*?\s+inspect(?=\s|$)"),
         // get is safe (read-only)
-        safe_pattern!("helm-get", r"helm\b.*?\s+get\b"),
+        safe_pattern!("helm-get", r"helm\b.*?\s+get(?=\s|$)"),
         // search is safe
-        safe_pattern!("helm-search", r"helm\b.*?\s+search\b"),
+        safe_pattern!("helm-search", r"helm\b.*?\s+search(?=\s|$)"),
         // repo operations are generally safe
-        safe_pattern!("helm-repo", r"helm\b.*?\s+repo\b"),
+        safe_pattern!("helm-repo", r"helm\b.*?\s+repo(?=\s|$)"),
         // dry-run flags
         safe_pattern!("helm-dry-run", r"helm\b.*--dry-run"),
         // template only generates manifests
-        safe_pattern!("helm-template", r"helm\b.*?\s+template\b"),
+        safe_pattern!("helm-template", r"helm\b.*?\s+template(?=\s|$)"),
         // lint is safe (validation)
-        safe_pattern!("helm-lint", r"helm\b.*?\s+lint\b"),
+        safe_pattern!("helm-lint", r"helm\b.*?\s+lint(?=\s|$)"),
         // diff plugin is safe
-        safe_pattern!("helm-diff", r"helm\b.*?\s+diff\b"),
+        safe_pattern!("helm-diff", r"helm\b.*?\s+diff(?=\s|$)"),
     ]
 }
 

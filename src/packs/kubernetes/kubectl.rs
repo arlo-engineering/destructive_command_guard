@@ -131,28 +131,40 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each read-only subcommand stops a resource name that
+    // contains the subcommand keyword as a substring from making a
+    // destructive command short-circuit as safe. Without this anchor,
+    //   kubectl delete pod get-handler
+    //   kubectl delete deployment describe-worker
+    //   kubectl delete statefulset logs-archive
+    // would each match their respective safe pattern (via `get`/`describe`/
+    // `logs` inside the hyphenated resource name) and bypass the destructive
+    // rule.
     vec![
         // get/describe/logs are safe (read-only)
-        safe_pattern!("kubectl-get", r"kubectl\b.*?\s+get\b"),
-        safe_pattern!("kubectl-describe", r"kubectl\b.*?\s+describe\b"),
-        safe_pattern!("kubectl-logs", r"kubectl\b.*?\s+logs\b"),
+        safe_pattern!("kubectl-get", r"kubectl\b.*?\s+get(?=\s|$)"),
+        safe_pattern!("kubectl-describe", r"kubectl\b.*?\s+describe(?=\s|$)"),
+        safe_pattern!("kubectl-logs", r"kubectl\b.*?\s+logs(?=\s|$)"),
         // dry-run is safe
         safe_pattern!(
             "kubectl-dry-run",
             r"kubectl\b.*--dry-run(?:=(?:client|server|none))?"
         ),
         // diff is safe (shows what would change)
-        safe_pattern!("kubectl-diff", r"kubectl\b.*?\s+diff\b"),
+        safe_pattern!("kubectl-diff", r"kubectl\b.*?\s+diff(?=\s|$)"),
         // explain is safe (documentation)
-        safe_pattern!("kubectl-explain", r"kubectl\b.*?\s+explain\b"),
+        safe_pattern!("kubectl-explain", r"kubectl\b.*?\s+explain(?=\s|$)"),
         // top is safe (metrics)
-        safe_pattern!("kubectl-top", r"kubectl\b.*?\s+top\b"),
+        safe_pattern!("kubectl-top", r"kubectl\b.*?\s+top(?=\s|$)"),
         // config is safe
-        safe_pattern!("kubectl-config", r"kubectl\b.*?\s+config\b"),
+        safe_pattern!("kubectl-config", r"kubectl\b.*?\s+config(?=\s|$)"),
         // api-resources/api-versions are safe
-        safe_pattern!("kubectl-api", r"kubectl\b.*?\s+api-(?:resources|versions)"),
+        safe_pattern!(
+            "kubectl-api",
+            r"kubectl\b.*?\s+api-(?:resources|versions)(?=\s|$)"
+        ),
         // version is safe
-        safe_pattern!("kubectl-version", r"kubectl\b.*?\s+version\b"),
+        safe_pattern!("kubectl-version", r"kubectl\b.*?\s+version(?=\s|$)"),
     ]
 }
 
@@ -477,5 +489,36 @@ mod tests {
             &pack,
             "kubectl --context prod delete deployment foo --dry-run=client",
         );
+    }
+
+    #[test]
+    fn safe_subcommand_inside_resource_name_does_not_short_circuit() {
+        // Resource names often contain read-only subcommand keywords as
+        // substrings. Without the `(?=\s|$)` anchor, `kubectl delete
+        // deployment get-handler` matches the `kubectl-get` safe rule via
+        // `get` in `get-handler`, short-circuiting the destructive
+        // `delete-workload` check.
+        let pack = create_pack();
+        assert!(
+            pack.check("kubectl delete deployment get-handler").is_some(),
+            "delete deployment named `get-handler` must still block"
+        );
+        assert!(
+            pack.check("kubectl delete statefulset describe-worker").is_some(),
+            "delete statefulset named `describe-worker` must still block"
+        );
+        assert!(
+            pack.check("kubectl delete daemonset logs-archive").is_some(),
+            "delete daemonset named `logs-archive` must still block"
+        );
+        assert!(
+            pack.check("kubectl delete pvc top-disk").is_some(),
+            "delete pvc named `top-disk` must still block"
+        );
+
+        // Bare subcommands still short-circuit.
+        assert_allows(&pack, "kubectl get pods");
+        assert_allows(&pack, "kubectl describe pod foo");
+        assert_allows(&pack, "kubectl logs deployment/myapp");
     }
 }
