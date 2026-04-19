@@ -53,10 +53,26 @@ pub fn create_pack() -> Pack {
 
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
-        // describe/list/get operations are safe (read-only)
-        safe_pattern!("aws-describe", r"aws\b.*?\s+\S+\s+describe-"),
-        safe_pattern!("aws-list", r"aws\b.*?\s+\S+\s+list-"),
-        safe_pattern!("aws-get", r"aws\b.*?\s+\S+\s+get-"),
+        // describe/list/get operations are safe (read-only).
+        //
+        // `(?:\s+--?\S+(?:\s+\S+)?)*` consumes only flag-value pairs (tokens
+        // starting with `--?`) BEFORE the service name — so `describe-`,
+        // `list-`, `get-` prefixes that appear as positional args inside a
+        // destructive command (e.g. `--query describe-me`,
+        // `--cli-input-json list-ids.json`) can NOT pose as the read-only
+        // subcommand and bypass destructive checks.
+        safe_pattern!(
+            "aws-describe",
+            r"aws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+\S+\s+describe-"
+        ),
+        safe_pattern!(
+            "aws-list",
+            r"aws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+\S+\s+list-"
+        ),
+        safe_pattern!(
+            "aws-get",
+            r"aws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+\S+\s+get-"
+        ),
         // s3 ls is safe
         safe_pattern!("s3-ls", r"aws\b.*?\bs3\s+ls"),
         // s3 cp is generally safe (copy)
@@ -1552,5 +1568,39 @@ mod tests {
         assert_allows(&pack, "aws glue get-database --name analytics");
         assert_allows(&pack, "aws glue list-crawlers");
         assert_allows(&pack, "aws glue get-job --job-name orders-etl");
+    }
+
+    #[test]
+    fn describe_list_get_arg_does_not_bypass_destructive_subcommand() {
+        // `describe-`, `list-`, `get-` prefixes that appear as positional
+        // arg values (e.g. `--query describe-me`, `--cli-input-json
+        // list-ids.json`) must NOT be interpreted as the subcommand and
+        // short-circuit destructive checks.
+        let pack = create_pack();
+
+        // Legitimate read-only commands still allowed.
+        assert_allows(&pack, "aws ec2 describe-instances");
+        assert_allows(&pack, "aws s3api list-objects-v2 --bucket b");
+        assert_allows(&pack, "aws iam get-user");
+        assert_allows(&pack, "aws --profile prod ec2 describe-instances");
+        assert_allows(&pack, "aws --region us-east-1 ec2 describe-instances");
+
+        // These compound destructive commands used to be whitelisted by
+        // the safe patterns via the `describe-`/`list-`/`get-` suffixes
+        // inside an argument. They must still block.
+        let m = pack
+            .check("aws s3api delete-bucket --bucket prod --query describe-me")
+            .expect("`--query describe-me` must not whitelist delete-bucket");
+        assert_eq!(m.name, Some("s3api-delete-bucket"));
+
+        let m = pack
+            .check("aws ec2 terminate-instances --instance-ids list-ids")
+            .expect("`--instance-ids list-ids` must not whitelist terminate");
+        assert_eq!(m.name, Some("ec2-terminate"));
+
+        let m = pack
+            .check("aws iam delete-user --user-name get-creds-bot")
+            .expect("`--user-name get-creds-bot` must not whitelist delete-user");
+        assert_eq!(m.name, Some("iam-delete"));
     }
 }
