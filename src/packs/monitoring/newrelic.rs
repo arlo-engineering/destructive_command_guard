@@ -26,18 +26,21 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a resource/entity name containing
+    // the subcommand keyword as a substring doesn't short-circuit
+    // destructive newrelic ops via the safe rule.
     vec![
         safe_pattern!(
             "newrelic-entity-search",
-            r"\bnewrelic\b(?:\s+--?\S+(?:\s+\S+)?)*\s+entity\s+search\b"
+            r"\bnewrelic\b(?:\s+--?\S+(?:\s+\S+)?)*\s+entity\s+search(?=\s|$)"
         ),
         safe_pattern!(
             "newrelic-apm-app-get",
-            r"\bnewrelic\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apm\s+application\s+get\b"
+            r"\bnewrelic\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apm\s+application\s+get(?=\s|$)"
         ),
         safe_pattern!(
             "newrelic-query",
-            r"\bnewrelic\b(?:\s+--?\S+(?:\s+\S+)?)*\s+query\b"
+            r"\bnewrelic\b(?:\s+--?\S+(?:\s+\S+)?)*\s+query(?=\s|$)"
         ),
         safe_pattern!(
             "newrelic-api-get",

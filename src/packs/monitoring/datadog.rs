@@ -25,14 +25,17 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a monitor/dashboard name containing
+    // `get` or `list` as a substring doesn't short-circuit destructive
+    // datadog-ci ops via the safe rule.
     vec![
         safe_pattern!(
             "datadog-ci-monitors-list",
-            r"datadog-ci\b.*?\bmonitors\s+(?:get|list)\b"
+            r"datadog-ci\b.*?\bmonitors\s+(?:get|list)(?=\s|$)"
         ),
         safe_pattern!(
             "datadog-ci-dashboards-list",
-            r"datadog-ci\b.*?\bdashboards\s+(?:get|list)\b"
+            r"datadog-ci\b.*?\bdashboards\s+(?:get|list)(?=\s|$)"
         ),
         safe_pattern!(
             "datadog-api-get",
