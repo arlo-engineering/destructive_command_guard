@@ -33,21 +33,21 @@ fn create_safe_patterns() -> Vec<SafePattern> {
     // via `preview` in `preview-stack` and bypass the destroy rule.
     vec![
         // preview is safe (read-only)
-        safe_pattern!("pulumi-preview", r"pulumi\b.*?\s+preview(?=\s|$)"),
+        safe_pattern!("pulumi-preview", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+preview(?=\s|$)"),
         // stack ls/select/init are safe
-        safe_pattern!("pulumi-stack-ls", r"pulumi\b.*?\bstack\s+ls(?=\s|$)"),
-        safe_pattern!("pulumi-stack-select", r"pulumi\b.*?\bstack\s+select(?=\s|$)"),
-        safe_pattern!("pulumi-stack-init", r"pulumi\b.*?\bstack\s+init(?=\s|$)"),
+        safe_pattern!("pulumi-stack-ls", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+stack\s+ls(?=\s|$)"),
+        safe_pattern!("pulumi-stack-select", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+stack\s+select(?=\s|$)"),
+        safe_pattern!("pulumi-stack-init", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+stack\s+init(?=\s|$)"),
         // config is safe
-        safe_pattern!("pulumi-config", r"pulumi\b.*?\s+config(?=\s|$)"),
+        safe_pattern!("pulumi-config", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+config(?=\s|$)"),
         // whoami is safe
-        safe_pattern!("pulumi-whoami", r"pulumi\b.*?\s+whoami(?=\s|$)"),
+        safe_pattern!("pulumi-whoami", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+whoami(?=\s|$)"),
         // version is safe
-        safe_pattern!("pulumi-version", r"pulumi\b.*?\s+version(?=\s|$)"),
+        safe_pattern!("pulumi-version", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+version(?=\s|$)"),
         // about is safe
-        safe_pattern!("pulumi-about", r"pulumi\b.*?\s+about(?=\s|$)"),
+        safe_pattern!("pulumi-about", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+about(?=\s|$)"),
         // logs is safe
-        safe_pattern!("pulumi-logs", r"pulumi\b.*?\s+logs(?=\s|$)"),
+        safe_pattern!("pulumi-logs", r"pulumi\b(?:\s+--?\S+(?:\s+\S+)?)*\s+logs(?=\s|$)"),
     ]
 }
 
