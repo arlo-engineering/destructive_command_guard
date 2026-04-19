@@ -606,11 +606,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
 
     vec![
         // rm -rf on root or home paths (CRITICAL - catastrophic, never allow)
-        // `['"]?` before `[/~]` so `rm -rf "/"` and `rm -rf '/'` are caught
-        // too — shell unquotes those to `/` before rm sees them.
+        // `['"\\]?` before `[/~]` so `rm -rf "/"`, `rm -rf '/'`, and
+        // `rm -rf \/` (backslash-escaped root) are all caught — shell
+        // unquotes/unescapes any of those to `/` before rm sees them.
         destructive_pattern!(
             "rm-rf-root-home",
-            r#"rm\s+-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*\s+['"]?[/~]|rm\s+-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*\s+['"]?[/~]"#,
+            r#"rm\s+-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*\s+['"\\]?[/~]|rm\s+-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*\s+['"\\]?[/~]"#,
             "rm -rf on root or home paths is EXTREMELY DANGEROUS. This command will NOT be executed. Ask the user to run it manually if truly needed.",
             Critical,
             "This command would recursively delete files starting from the root filesystem (/) \
@@ -634,7 +635,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Critical root deletion.
         destructive_pattern!(
             "rm-r-f-separate-root-home",
-            r#"rm\s+(-[a-zA-Z]+\s+)*-[rR]\s+(-[a-zA-Z]+\s+)*-f\s+['"]?[/~]|rm\s+(-[a-zA-Z]+\s+)*-f\s+(-[a-zA-Z]+\s+)*-[rR]\s+['"]?[/~]"#,
+            r#"rm\s+(-[a-zA-Z]+\s+)*-[rR]\s+(-[a-zA-Z]+\s+)*-f\s+['"\\]?[/~]|rm\s+(-[a-zA-Z]+\s+)*-f\s+(-[a-zA-Z]+\s+)*-[rR]\s+['"\\]?[/~]"#,
             "rm with separate -r -f flags targeting root or home is EXTREMELY DANGEROUS.",
             Critical,
             "Separate `-r -f` flags on `/` or `~` have identical effect to `rm -rf /`: \
@@ -646,7 +647,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // (`rm --recursive --force /`, `rm --force --recursive /`).
         destructive_pattern!(
             "rm-recursive-force-root-home",
-            r#"rm\s+.*--recursive.*--force\s+['"]?[/~]|rm\s+.*--force.*--recursive\s+['"]?[/~]"#,
+            r#"rm\s+.*--recursive.*--force\s+['"\\]?[/~]|rm\s+.*--force.*--recursive\s+['"\\]?[/~]"#,
             "rm --recursive --force targeting root or home is EXTREMELY DANGEROUS.",
             Critical,
             "The long-flag form has identical effect to `rm -rf /`: recursive, forced, \
@@ -787,6 +788,15 @@ mod tests {
         assert_blocks_with_severity(
             &pack,
             "rm --recursive --force '/'",
+            Severity::Critical,
+        );
+        // Backslash-escaped root: shell unescapes \/ to / and \~ to ~.
+        assert_blocks_with_severity(&pack, "rm -rf \\/", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf \\~", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -r -f \\/", Severity::Critical);
+        assert_blocks_with_severity(
+            &pack,
+            "rm --recursive --force \\/",
             Severity::Critical,
         );
 
