@@ -31,48 +31,48 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // az storage container operations (read-only)
         safe_pattern!(
             "az-storage-container-list",
-            r"\baz\b.*?\bstorage\s+container\s+list(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+container\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "az-storage-container-show",
-            r"\baz\b.*?\bstorage\s+container\s+show(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+container\s+show(?=\s|$)"
         ),
         safe_pattern!(
             "az-storage-container-exists",
-            r"\baz\b.*?\bstorage\s+container\s+exists(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+container\s+exists(?=\s|$)"
         ),
         // az storage blob operations (read-only)
-        safe_pattern!("az-storage-blob-list", r"\baz\b.*?\bstorage\s+blob\s+list(?=\s|$)"),
-        safe_pattern!("az-storage-blob-show", r"\baz\b.*?\bstorage\s+blob\s+show(?=\s|$)"),
+        safe_pattern!("az-storage-blob-list", r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+list(?=\s|$)"),
+        safe_pattern!("az-storage-blob-show", r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+show(?=\s|$)"),
         safe_pattern!(
             "az-storage-blob-exists",
-            r"\baz\b.*?\bstorage\s+blob\s+exists(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+exists(?=\s|$)"
         ),
         safe_pattern!(
             "az-storage-blob-download",
-            r"\baz\b.*?\bstorage\s+blob\s+download(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+download(?=\s|$)"
         ),
         safe_pattern!(
             "az-storage-blob-download-batch",
-            r"\baz\b.*?\bstorage\s+blob\s+download-batch(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+download-batch(?=\s|$)"
         ),
-        safe_pattern!("az-storage-blob-url", r"\baz\b.*?\bstorage\s+blob\s+url(?=\s|$)"),
+        safe_pattern!("az-storage-blob-url", r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+url(?=\s|$)"),
         safe_pattern!(
             "az-storage-blob-metadata-show",
-            r"\baz\b.*?\bstorage\s+blob\s+metadata\s+show(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+metadata\s+show(?=\s|$)"
         ),
         // az storage account operations (read-only)
         safe_pattern!(
             "az-storage-account-list",
-            r"\baz\b.*?\bstorage\s+account\s+list(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+account\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "az-storage-account-show",
-            r"\baz\b.*?\bstorage\s+account\s+show(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+account\s+show(?=\s|$)"
         ),
         safe_pattern!(
             "az-storage-account-keys-list",
-            r"\baz\b.*?\bstorage\s+account\s+keys\s+list(?=\s|$)"
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+account\s+keys\s+list(?=\s|$)"
         ),
         // azcopy operations (read-only)
         safe_pattern!("azcopy-list", r"\bazcopy\s+(?:--\S+\s+)*list(?=\s|$)"),
@@ -89,7 +89,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Container deletion
         destructive_pattern!(
             "az-storage-container-delete",
-            r"\baz\b.*?\bstorage\s+container\s+delete\b",
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+container\s+delete\b",
             "az storage container delete removes an Azure storage container.",
             Critical,
             "Deleting an Azure storage container removes all blobs within it permanently. \
@@ -103,7 +103,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Blob deletion (order matters: delete-batch before delete)
         destructive_pattern!(
             "az-storage-blob-delete-batch",
-            r"\baz\b.*?\bstorage\s+blob\s+delete-batch\b",
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+delete-batch\b",
             "az storage blob delete-batch removes multiple blobs from Azure storage.",
             High,
             "Batch deletion removes many blobs at once based on patterns. Without soft \
@@ -116,7 +116,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "az-storage-blob-delete",
-            r"\baz\b.*?\bstorage\s+blob\s+delete(?:\s|$)",
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+blob\s+delete(?:\s|$)",
             "az storage blob delete removes a blob from Azure storage.",
             Medium,
             "Deleting a single blob removes it from storage. Without soft delete, the data \
@@ -129,7 +129,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Storage account deletion
         destructive_pattern!(
             "az-storage-account-delete",
-            r"\baz\b.*?\bstorage\s+account\s+delete\b",
+            r"\baz\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+account\s+delete\b",
             "az storage account delete removes an entire Azure storage account.",
             Critical,
             "Deleting a storage account removes all containers, blobs, tables, queues, \

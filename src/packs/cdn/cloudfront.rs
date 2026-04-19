@@ -32,53 +32,53 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // List operations
         safe_pattern!(
             "cloudfront-list-distributions",
-            r"\baws\b.*?\bcloudfront\s+list-distributions\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+list-distributions\b"
         ),
         safe_pattern!(
             "cloudfront-list-cache-policies",
-            r"\baws\b.*?\bcloudfront\s+list-cache-policies\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+list-cache-policies\b"
         ),
         safe_pattern!(
             "cloudfront-list-origin-request-policies",
-            r"\baws\b.*?\bcloudfront\s+list-origin-request-policies\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+list-origin-request-policies\b"
         ),
         safe_pattern!(
             "cloudfront-list-functions",
-            r"\baws\b.*?\bcloudfront\s+list-functions\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+list-functions\b"
         ),
         safe_pattern!(
             "cloudfront-list-invalidations",
-            r"\baws\b.*?\bcloudfront\s+list-invalidations\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+list-invalidations\b"
         ),
         // Get operations
         safe_pattern!(
             "cloudfront-get-distribution",
-            r"\baws\b.*?\bcloudfront\s+get-distribution\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+get-distribution\b"
         ),
         safe_pattern!(
             "cloudfront-get-distribution-config",
-            r"\baws\b.*?\bcloudfront\s+get-distribution-config\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+get-distribution-config\b"
         ),
         safe_pattern!(
             "cloudfront-get-cache-policy",
-            r"\baws\b.*?\bcloudfront\s+get-cache-policy\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+get-cache-policy\b"
         ),
         safe_pattern!(
             "cloudfront-get-origin-request-policy",
-            r"\baws\b.*?\bcloudfront\s+get-origin-request-policy\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+get-origin-request-policy\b"
         ),
         safe_pattern!(
             "cloudfront-get-function",
-            r"\baws\b.*?\bcloudfront\s+get-function\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+get-function\b"
         ),
         safe_pattern!(
             "cloudfront-get-invalidation",
-            r"\baws\b.*?\bcloudfront\s+get-invalidation\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+get-invalidation\b"
         ),
         // Describe operations
         safe_pattern!(
             "cloudfront-describe-function",
-            r"\baws\b.*?\bcloudfront\s+describe-function\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+cloudfront\s+describe-function\b"
         ),
     ]
 }
@@ -298,5 +298,18 @@ mod tests {
             "aws cloudfront create-invalidation --distribution-id ABC --paths '/*'",
             "cloudfront-create-invalidation",
         );
+    }
+
+    #[test]
+    fn arg_named_like_safe_subcommand_does_not_bypass() {
+        // A positional arg (e.g. `--id list-distributions`) must not pose
+        // as the safe subcommand. The flag-walker in safe patterns walks
+        // flag tokens only, so arg values with hyphenated "list-/get-"
+        // names cannot short-circuit a destructive call.
+        let pack = create_pack();
+        let matched = pack
+            .check("aws cloudfront delete-distribution --id list-distributions --if-match ETAG")
+            .expect("arg value literally named `list-distributions` must not bypass the block");
+        assert_eq!(matched.name, Some("cloudfront-delete-distribution"));
     }
 }

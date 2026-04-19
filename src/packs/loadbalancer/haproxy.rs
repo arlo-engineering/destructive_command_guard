@@ -34,7 +34,7 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // Status check via systemctl/service
         safe_pattern!(
             "systemctl-status-haproxy",
-            r"systemctl\b.*?\s+status\s+haproxy(?:\.service)?\b"
+            r"systemctl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+status\s+haproxy(?:\.service)?\b"
         ),
         safe_pattern!("service-status-haproxy", r"service\s+haproxy\s+status\b"),
         // Runtime API read-only queries via socat

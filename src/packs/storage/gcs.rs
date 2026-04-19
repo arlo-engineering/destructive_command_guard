@@ -47,31 +47,31 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // gcloud storage read operations
         safe_pattern!(
             "gcloud-storage-buckets-list",
-            r"gcloud\b.*?\bstorage\s+buckets\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+buckets\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-buckets-describe",
-            r"gcloud\b.*?\bstorage\s+buckets\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+buckets\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-objects-list",
-            r"gcloud\b.*?\bstorage\s+objects\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+objects\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-objects-describe",
-            r"gcloud\b.*?\bstorage\s+objects\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+objects\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-ls",
-            r"gcloud\b.*?\bstorage\s+ls(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+ls(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-cat",
-            r"gcloud\b.*?\bstorage\s+cat(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+cat(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-cp",
-            r"gcloud\b.*?\bstorage\s+cp(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+cp(?=\s|$)"
         ),
     ]
 }
@@ -125,7 +125,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gcloud storage bucket deletion
         destructive_pattern!(
             "gcloud-storage-buckets-delete",
-            r"gcloud\b.*?\bstorage\s+buckets\s+delete\b",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+buckets\s+delete\b",
             "gcloud storage buckets delete removes a GCS bucket.",
             Critical,
             "Deleting a GCS bucket removes the bucket configuration and all objects within it \
@@ -139,7 +139,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gcloud storage object deletion
         destructive_pattern!(
             "gcloud-storage-objects-delete",
-            r"gcloud\b.*?\bstorage\s+objects\s+delete\b",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+objects\s+delete\b",
             "gcloud storage objects delete removes objects from GCS.",
             High,
             "Deleting GCS objects permanently removes data. Without object versioning, \
@@ -153,7 +153,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gcloud storage rm
         destructive_pattern!(
             "gcloud-storage-rm",
-            r"gcloud\b.*?\bstorage\s+rm\b",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+rm\b",
             "gcloud storage rm removes objects from GCS.",
             High,
             "The rm command deletes objects and can recursively remove entire bucket \

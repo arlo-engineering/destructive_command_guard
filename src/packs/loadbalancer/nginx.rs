@@ -34,7 +34,7 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("nginx-reload", r"nginx\s+-s\s+reload\b"),
         safe_pattern!(
             "systemctl-status-nginx",
-            r"systemctl\b.*?\s+status\s+nginx(?:\.service)?\b"
+            r"systemctl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+status\s+nginx(?:\.service)?\b"
         ),
         safe_pattern!("service-status-nginx", r"service\s+nginx\s+status\b"),
     ]

@@ -67,13 +67,13 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // a safe-first match on a flag value would BYPASS the
         // destructive check. Same care is taken on every similar
         // `az`/`gcloud` safe pattern below.
-        safe_pattern!("az-account", r"az\b.*?\s+account(?=\s|$)"),
+        safe_pattern!("az-account", r"az\b(?:\s+--?\S+(?:\s+\S+)?)*\s+account(?=\s|$)"),
         // az configure is safe
-        safe_pattern!("az-configure", r"az\b.*?\s+configure(?=\s|$)"),
+        safe_pattern!("az-configure", r"az\b(?:\s+--?\S+(?:\s+\S+)?)*\s+configure(?=\s|$)"),
         // az login is safe
-        safe_pattern!("az-login", r"az\b.*?\s+login(?=\s|$)"),
+        safe_pattern!("az-login", r"az\b(?:\s+--?\S+(?:\s+\S+)?)*\s+login(?=\s|$)"),
         // az version is safe
-        safe_pattern!("az-version", r"az\b.*?\s+version(?=\s|$)"),
+        safe_pattern!("az-version", r"az\b(?:\s+--?\S+(?:\s+\S+)?)*\s+version(?=\s|$)"),
         // az --help is safe
         safe_pattern!("az-help", r"az\b.*--help"),
         // what-if is safe (preview)

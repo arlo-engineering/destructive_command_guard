@@ -32,19 +32,19 @@ fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         safe_pattern!(
             "route53-list-hosted-zones",
-            r"\baws\b.*?\broute53\s+list-hosted-zones\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+route53\s+list-hosted-zones\b"
         ),
         safe_pattern!(
             "route53-list-resource-record-sets",
-            r"\baws\b.*?\broute53\s+list-resource-record-sets\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+route53\s+list-resource-record-sets\b"
         ),
         safe_pattern!(
             "route53-get-hosted-zone",
-            r"\baws\b.*?\broute53\s+get-hosted-zone\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+route53\s+get-hosted-zone\b"
         ),
         safe_pattern!(
             "route53-test-dns-answer",
-            r"\baws\b.*?\broute53\s+test-dns-answer\b"
+            r"\baws\b(?:\s+--?\S+(?:\s+\S+)?)*\s+route53\s+test-dns-answer\b"
         ),
     ]
 }

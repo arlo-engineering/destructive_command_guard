@@ -27,9 +27,15 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // kustomize build alone is safe (just renders)
-        safe_pattern!("kustomize-build", r"kustomize\b.*?\s+build\b(?!\s*\|)"),
+        safe_pattern!(
+            "kustomize-build",
+            r"kustomize\b(?:\s+--?\S+(?:\s+\S+)?)*\s+build\b(?!\s*\|)"
+        ),
         // kubectl kustomize is safe (just renders)
-        safe_pattern!("kubectl-kustomize", r"kubectl\b.*?\s+kustomize\b(?!\s*\|)"),
+        safe_pattern!(
+            "kubectl-kustomize",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+kustomize\b(?!\s*\|)"
+        ),
         // kustomize with diff is safe
         safe_pattern!(
             "kustomize-diff",

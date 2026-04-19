@@ -28,51 +28,51 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // gcloud apigee - list/describe operations
         safe_pattern!(
             "gcloud-apigee-apis-list",
-            r"gcloud\b.*?\bapigee\s+apis\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+apis\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-apis-describe",
-            r"gcloud\b.*?\bapigee\s+apis\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+apis\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-environments-list",
-            r"gcloud\b.*?\bapigee\s+environments\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+environments\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-environments-describe",
-            r"gcloud\b.*?\bapigee\s+environments\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+environments\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-developers-list",
-            r"gcloud\b.*?\bapigee\s+developers\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+developers\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-developers-describe",
-            r"gcloud\b.*?\bapigee\s+developers\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+developers\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-products-list",
-            r"gcloud\b.*?\bapigee\s+products\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+products\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-products-describe",
-            r"gcloud\b.*?\bapigee\s+products\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+products\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-organizations-list",
-            r"gcloud\b.*?\bapigee\s+organizations\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+organizations\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-organizations-describe",
-            r"gcloud\b.*?\bapigee\s+organizations\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+organizations\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-deployments-list",
-            r"gcloud\b.*?\bapigee\s+deployments\s+list(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+deployments\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-deployments-describe",
-            r"gcloud\b.*?\bapigee\s+deployments\s+describe(?=\s|$)"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+deployments\s+describe(?=\s|$)"
         ),
         // apigeecli - list operations
         safe_pattern!("apigeecli-apis-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+apis\s+list(?=\s|$)"),
@@ -94,7 +94,7 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // Help commands
         safe_pattern!(
             "gcloud-apigee-help",
-            r"gcloud\b.*?\bapigee\s+(?:--help|-h|help)\b"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+apigee\s+(?:--help|-h|help)\b"
         ),
         safe_pattern!(
             "apigeecli-help",

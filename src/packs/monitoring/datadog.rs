@@ -31,11 +31,11 @@ fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         safe_pattern!(
             "datadog-ci-monitors-list",
-            r"datadog-ci\b.*?\bmonitors\s+(?:get|list)(?=\s|$)"
+            r"datadog-ci\b(?:\s+--?\S+(?:\s+\S+)?)*\s+monitors\s+(?:get|list)(?=\s|$)"
         ),
         safe_pattern!(
             "datadog-ci-dashboards-list",
-            r"datadog-ci\b.*?\bdashboards\s+(?:get|list)(?=\s|$)"
+            r"datadog-ci\b(?:\s+--?\S+(?:\s+\S+)?)*\s+dashboards\s+(?:get|list)(?=\s|$)"
         ),
         safe_pattern!(
             "datadog-api-get",

@@ -43,12 +43,12 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // Docker inspect/logs (read-only)
         safe_pattern!(
             "docker-traefik-inspect",
-            r"docker\b.*?\s+(?:inspect|logs)\s+.*\btraefik\b"
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:inspect|logs)\s+.*\btraefik\b"
         ),
         // Kubectl get/describe (read-only)
         safe_pattern!(
             "kubectl-traefik-get",
-            r"kubectl\b.*?\s+(?:get|describe)\s+.*\bingressroute"
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:get|describe)\s+.*\bingressroute"
         ),
     ]
 }

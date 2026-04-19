@@ -86,32 +86,68 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("mdadm-scan", r"mdadm\s+--scan\b"),
         // --- btrfs safe patterns ---
         // btrfs subvolume list (read-only)
-        safe_pattern!("btrfs-subvolume-list", r"btrfs\b.*?\s+subvolume\s+list(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-subvolume-list",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+subvolume\s+list(?=\s|$)"
+        ),
         // btrfs subvolume show (read-only)
-        safe_pattern!("btrfs-subvolume-show", r"btrfs\b.*?\s+subvolume\s+show(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-subvolume-show",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+subvolume\s+show(?=\s|$)"
+        ),
         // btrfs filesystem show (read-only)
-        safe_pattern!("btrfs-filesystem-show", r"btrfs\b.*?\s+filesystem\s+show(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-filesystem-show",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+filesystem\s+show(?=\s|$)"
+        ),
         // btrfs filesystem df (read-only)
-        safe_pattern!("btrfs-filesystem-df", r"btrfs\b.*?\s+filesystem\s+df(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-filesystem-df",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+filesystem\s+df(?=\s|$)"
+        ),
         // btrfs filesystem usage (read-only)
-        safe_pattern!("btrfs-filesystem-usage", r"btrfs\b.*?\s+filesystem\s+usage(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-filesystem-usage",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+filesystem\s+usage(?=\s|$)"
+        ),
         // btrfs device stats (read-only)
-        safe_pattern!("btrfs-device-stats", r"btrfs\b.*?\s+device\s+stats(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-device-stats",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+device\s+stats(?=\s|$)"
+        ),
         // btrfs property get/list (read-only)
-        safe_pattern!("btrfs-property-get", r"btrfs\b.*?\s+property\s+(?:get|list)(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-property-get",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+property\s+(?:get|list)(?=\s|$)"
+        ),
         // btrfs scrub status (read-only)
-        safe_pattern!("btrfs-scrub-status", r"btrfs\b.*?\s+scrub\s+status(?=\s|$)"),
+        safe_pattern!(
+            "btrfs-scrub-status",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+scrub\s+status(?=\s|$)"
+        ),
         // --- dmsetup safe patterns ---
         // dmsetup ls (list devices)
-        safe_pattern!("dmsetup-ls", r"dmsetup\b.*?\s+ls(?=\s|$)"),
+        safe_pattern!("dmsetup-ls", r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+ls(?=\s|$)"),
         // dmsetup status (show status)
-        safe_pattern!("dmsetup-status", r"dmsetup\b.*?\s+status(?=\s|$)"),
+        safe_pattern!(
+            "dmsetup-status",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+status(?=\s|$)"
+        ),
         // dmsetup info (show info)
-        safe_pattern!("dmsetup-info", r"dmsetup\b.*?\s+info(?=\s|$)"),
+        safe_pattern!(
+            "dmsetup-info",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+info(?=\s|$)"
+        ),
         // dmsetup table (show mapping table)
-        safe_pattern!("dmsetup-table", r"dmsetup\b.*?\s+table(?=\s|$)"),
+        safe_pattern!(
+            "dmsetup-table",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+table(?=\s|$)"
+        ),
         // dmsetup deps (show dependencies)
-        safe_pattern!("dmsetup-deps", r"dmsetup\b.*?\s+deps(?=\s|$)"),
+        safe_pattern!(
+            "dmsetup-deps",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+deps(?=\s|$)"
+        ),
         // --- nbd-client safe patterns ---
         // nbd-client -l (list exports)
         safe_pattern!("nbd-client-list", r"nbd-client\s+-l\b"),
