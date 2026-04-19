@@ -1446,6 +1446,31 @@ impl PackRegistry {
         // Expand category IDs to include all sub-packs in deterministic order
         let ordered_packs = self.expand_enabled_ordered(enabled_packs);
 
+        // Segment the command on shell sequence separators (`;`, `&&`, `||`,
+        // `\n`) so a safe pattern matching one segment cannot shield a
+        // destructive pattern in another. Pipelines (`|`) are intentionally
+        // kept whole because some pack patterns span them.
+        //
+        // We run the existing per-command logic on each segment. If any
+        // segment blocks, the whole command blocks. If all segments are
+        // allowed, the command is allowed overall. We also run the full
+        // command once at the end so that patterns which legitimately span
+        // the whole input (heredoc-aware, multi-segment pipeline patterns)
+        // still get a chance to fire.
+        let segments = split_command_segments(cmd);
+        if segments.len() > 1 {
+            for seg in &segments {
+                let result = self.check_command_single(seg, &ordered_packs);
+                if result.blocked {
+                    return result;
+                }
+            }
+        }
+
+        self.check_command_single(cmd, &ordered_packs)
+    }
+
+    fn check_command_single(&self, cmd: &str, ordered_packs: &[String]) -> CheckResult {
         // Pre-compute candidate packs (might_match cache).
         // This avoids calling might_match twice per pack (once per pass).
         let candidate_packs: Vec<(&String, &Pack)> = ordered_packs
@@ -2066,6 +2091,93 @@ fn should_fallback_to_full_normalized_keyword_scan(original: &str, normalized: &
 #[must_use]
 pub fn pack_aware_quick_reject(cmd: &str, enabled_keywords: &[&str]) -> bool {
     pack_aware_quick_reject_with_normalized(cmd, enabled_keywords).0
+}
+
+/// Split a command into segments on shell sequence separators.
+///
+/// Splits on `;`, `&&`, `||`, and `\n`. Does NOT split on `|` (pipeline) or
+/// bare `&` (background) because some pack patterns legitimately span those
+/// (e.g. `kustomize build | kubectl diff`).
+///
+/// Respects single and double quotes — separators inside quotes don't split.
+/// Skips backslash-escaped separators outside single quotes.
+///
+/// This is the key fix for a compound-command bypass class: a safe pattern
+/// matching one segment of the command (e.g. `docker ps`) must NOT silence
+/// a destructive pattern in a different segment (`docker system prune`).
+/// By running pack evaluation on each segment independently, a safe prefix
+/// or safe suffix cannot shield a destructive segment.
+///
+/// Returns the full command as a single element when no separator is
+/// present — callers can use `len() == 1` to short-circuit to the single-
+/// segment path without changing existing behavior.
+#[must_use]
+pub fn split_command_segments(cmd: &str) -> Vec<&str> {
+    let bytes = cmd.as_bytes();
+    let mut segments: Vec<&str> = Vec::new();
+    let mut segment_start = 0usize;
+    let mut i = 0usize;
+    let mut in_single = false;
+    let mut in_double = false;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+
+        if b == b'\\' && !in_single && i + 1 < bytes.len() {
+            i += 2;
+            continue;
+        }
+        if b == b'\'' && !in_double {
+            in_single = !in_single;
+            i += 1;
+            continue;
+        }
+        if b == b'"' && !in_single {
+            in_double = !in_double;
+            i += 1;
+            continue;
+        }
+        if in_single || in_double {
+            i += 1;
+            continue;
+        }
+
+        let split_width: Option<usize> = if b == b';' || b == b'\n' {
+            Some(1)
+        } else if b == b'&' && bytes.get(i + 1) == Some(&b'&') {
+            Some(2)
+        } else if b == b'|' && bytes.get(i + 1) == Some(&b'|') {
+            Some(2)
+        } else {
+            None
+        };
+
+        if let Some(width) = split_width {
+            let seg = cmd[segment_start..i].trim();
+            if !seg.is_empty() {
+                segments.push(seg);
+            }
+            i += width;
+            segment_start = i;
+            continue;
+        }
+
+        i += 1;
+    }
+
+    let tail = cmd[segment_start..].trim();
+    if !tail.is_empty() {
+        segments.push(tail);
+    }
+
+    if segments.is_empty() {
+        let trimmed = cmd.trim();
+        if !trimmed.is_empty() {
+            segments.push(trimmed);
+        }
+    }
+
+    segments
 }
 
 /// Result of quick-reject check with the normalized command for reuse.
