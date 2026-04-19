@@ -34,25 +34,32 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a bucket/key path containing the
+    // subcommand keyword as a substring doesn't short-circuit destructive
+    // s3/s3api ops. `s3api-head-object(?=\s|$)` also prevents matching the
+    // prefix of unrelated subcommands like `head-object-v5` (hypothetical).
     vec![
-        safe_pattern!("s3-list", r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+ls\b"),
-        safe_pattern!("s3-copy", r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+cp\b"),
+        safe_pattern!("s3-list", r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+ls(?=\s|$)"),
+        safe_pattern!("s3-copy", r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+cp(?=\s|$)"),
         safe_pattern!(
             "s3-presign",
-            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+presign\b"
+            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+presign(?=\s|$)"
         ),
-        safe_pattern!("s3-mb", r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+mb\b"),
+        safe_pattern!(
+            "s3-mb",
+            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3\s+mb(?=\s|$)"
+        ),
         safe_pattern!(
             "s3api-list-objects",
-            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3api\s+list-objects(?:-v2)?\b"
+            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3api\s+list-objects(?:-v2)?(?=\s|$)"
         ),
         safe_pattern!(
             "s3api-get-object",
-            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3api\s+get-object\b"
+            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3api\s+get-object(?=\s|$)"
         ),
         safe_pattern!(
             "s3api-head-object",
-            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3api\s+head-object\b"
+            r"aws(?:\s+--?\S+(?:\s+\S+)?)*\s+s3api\s+head-object(?=\s|$)"
         ),
     ]
 }

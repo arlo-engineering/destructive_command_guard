@@ -26,37 +26,53 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a bucket/path containing the
+    // subcommand keyword as a substring (e.g. `gs://ls-archive`,
+    // `gs://cp-mirror/data`) doesn't short-circuit destructive gsutil
+    // or gcloud storage ops via the safe rule.
     vec![
         // gsutil read operations
-        safe_pattern!("gsutil-ls", r"gsutil\s+(?:-[a-zA-Z]+\s+)*ls\b"),
-        safe_pattern!("gsutil-cat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cat\b"),
-        safe_pattern!("gsutil-stat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*stat\b"),
-        safe_pattern!("gsutil-du", r"gsutil\s+(?:-[a-zA-Z]+\s+)*du\b"),
-        safe_pattern!("gsutil-hash", r"gsutil\s+(?:-[a-zA-Z]+\s+)*hash\b"),
-        safe_pattern!("gsutil-version", r"gsutil\s+(?:-[a-zA-Z]+\s+)*version\b"),
-        safe_pattern!("gsutil-help", r"gsutil\s+(?:-[a-zA-Z]+\s+)*help\b"),
+        safe_pattern!("gsutil-ls", r"gsutil\s+(?:-[a-zA-Z]+\s+)*ls(?=\s|$)"),
+        safe_pattern!("gsutil-cat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cat(?=\s|$)"),
+        safe_pattern!("gsutil-stat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*stat(?=\s|$)"),
+        safe_pattern!("gsutil-du", r"gsutil\s+(?:-[a-zA-Z]+\s+)*du(?=\s|$)"),
+        safe_pattern!("gsutil-hash", r"gsutil\s+(?:-[a-zA-Z]+\s+)*hash(?=\s|$)"),
+        safe_pattern!(
+            "gsutil-version",
+            r"gsutil\s+(?:-[a-zA-Z]+\s+)*version(?=\s|$)"
+        ),
+        safe_pattern!("gsutil-help", r"gsutil\s+(?:-[a-zA-Z]+\s+)*help(?=\s|$)"),
         // gsutil copy (read-only use)
-        safe_pattern!("gsutil-cp", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cp\b"),
+        safe_pattern!("gsutil-cp", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cp(?=\s|$)"),
         // gcloud storage read operations
         safe_pattern!(
             "gcloud-storage-buckets-list",
-            r"gcloud\b.*?\bstorage\s+buckets\s+list\b"
+            r"gcloud\b.*?\bstorage\s+buckets\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-buckets-describe",
-            r"gcloud\b.*?\bstorage\s+buckets\s+describe\b"
+            r"gcloud\b.*?\bstorage\s+buckets\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-objects-list",
-            r"gcloud\b.*?\bstorage\s+objects\s+list\b"
+            r"gcloud\b.*?\bstorage\s+objects\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-objects-describe",
-            r"gcloud\b.*?\bstorage\s+objects\s+describe\b"
+            r"gcloud\b.*?\bstorage\s+objects\s+describe(?=\s|$)"
         ),
-        safe_pattern!("gcloud-storage-ls", r"gcloud\b.*?\bstorage\s+ls\b"),
-        safe_pattern!("gcloud-storage-cat", r"gcloud\b.*?\bstorage\s+cat\b"),
-        safe_pattern!("gcloud-storage-cp", r"gcloud\b.*?\bstorage\s+cp\b"),
+        safe_pattern!(
+            "gcloud-storage-ls",
+            r"gcloud\b.*?\bstorage\s+ls(?=\s|$)"
+        ),
+        safe_pattern!(
+            "gcloud-storage-cat",
+            r"gcloud\b.*?\bstorage\s+cat(?=\s|$)"
+        ),
+        safe_pattern!(
+            "gcloud-storage-cp",
+            r"gcloud\b.*?\bstorage\s+cp(?=\s|$)"
+        ),
     ]
 }
 
