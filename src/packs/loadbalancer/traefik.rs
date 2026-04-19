@@ -29,8 +29,8 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // Version and health checks
-        safe_pattern!("traefik-version", r"\btraefik\s+version\b"),
-        safe_pattern!("traefik-healthcheck", r"\btraefik\s+healthcheck\b"),
+        safe_pattern!("traefik-version", r"\btraefik\s+version(?=\s|$)"),
+        safe_pattern!("traefik-healthcheck", r"\btraefik\s+healthcheck(?=\s|$)"),
         // API GET operations (read-only)
         safe_pattern!(
             "traefik-api-get",
