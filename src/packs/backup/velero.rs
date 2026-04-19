@@ -28,31 +28,31 @@ fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         safe_pattern!(
             "velero-backup-get",
-            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+get\b"
+            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+get(?=\s|$)"
         ),
         safe_pattern!(
             "velero-backup-describe",
-            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+describe\b"
+            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "velero-backup-logs",
-            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+logs\b"
+            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+logs(?=\s|$)"
         ),
         safe_pattern!(
             "velero-backup-create",
-            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+create\b"
+            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+backup\s+create(?=\s|$)"
         ),
         safe_pattern!(
             "velero-schedule-get",
-            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+schedule\s+get\b"
+            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+schedule\s+get(?=\s|$)"
         ),
         safe_pattern!(
             "velero-restore-create",
-            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+restore\s+create\b"
+            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+restore\s+create(?=\s|$)"
         ),
         safe_pattern!(
             "velero-version",
-            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+version\b"
+            r"velero(?:\s+--?\S+(?:\s+\S+)?)*\s+version(?=\s|$)"
         ),
     ]
 }

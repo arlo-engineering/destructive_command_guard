@@ -26,16 +26,37 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a remote/path with the subcommand
+    // keyword as a substring (e.g. `copy-staging:`, `ls-archives`) doesn't
+    // short-circuit destructive rclone ops via the safe rule.
     vec![
-        safe_pattern!("rclone-copy", r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+copy\b"),
-        safe_pattern!("rclone-ls", r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+ls\b"),
-        safe_pattern!("rclone-lsd", r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+lsd\b"),
-        safe_pattern!("rclone-lsl", r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+lsl\b"),
-        safe_pattern!("rclone-size", r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+size\b"),
-        safe_pattern!("rclone-check", r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+check\b"),
+        safe_pattern!(
+            "rclone-copy",
+            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+copy(?=\s|$)"
+        ),
+        safe_pattern!(
+            "rclone-ls",
+            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+ls(?=\s|$)"
+        ),
+        safe_pattern!(
+            "rclone-lsd",
+            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+lsd(?=\s|$)"
+        ),
+        safe_pattern!(
+            "rclone-lsl",
+            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+lsl(?=\s|$)"
+        ),
+        safe_pattern!(
+            "rclone-size",
+            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+size(?=\s|$)"
+        ),
+        safe_pattern!(
+            "rclone-check",
+            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+check(?=\s|$)"
+        ),
         safe_pattern!(
             "rclone-config",
-            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+config\b"
+            r"rclone(?:\s+--?\S+(?:\s+\S+)?)*\s+config(?=\s|$)"
         ),
         safe_pattern!("rclone-dry-run", r"rclone\b(?:\s+\S+)*\s+--dry-run\b"),
     ]
