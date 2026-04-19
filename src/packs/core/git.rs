@@ -348,10 +348,15 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
                 ]
             }
         ),
-        // branch -D/-f force deletes or overwrites without checks (Medium: recoverable via reflog)
+        // branch -D/-f force deletes or overwrites without checks (Medium: recoverable via reflog).
+        // `(?:\S+\s+)*` consumes intermediate flags/branches TOKEN-BY-TOKEN
+        // before the short-flag match — so combined forms (`-Dr`, `-vD`,
+        // `-fv`, `-vdf`) are caught, but hyphens inside branch names
+        // like `merged-feature` (which contain "-f") don't false-match
+        // because hyphens aren't token boundaries.
         destructive_pattern!(
             "branch-force-delete",
-            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*branch\s+.*(?:-D\b|--force\b|-f\b)",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*branch\s+(?:\S+\s+)*(?:-[a-zA-Z]*[Df][a-zA-Z]*\b|--force\b)",
             "git branch -D/--force deletes branches without checks. Recoverable via 'git reflog'.",
             Medium,
             "git branch -D force-deletes a branch without checking if it has been merged. \
@@ -572,6 +577,32 @@ mod tests {
         assert_blocks_with_pattern(&pack, "git branch -D feature", "branch-force-delete");
         assert_blocks_with_pattern(&pack, "git branch --force feature", "branch-force-delete");
         assert_blocks_with_pattern(&pack, "git branch -f feature", "branch-force-delete");
+
+        // Combined short-flag forms (previously missed) — all map to
+        // force-delete semantics:
+        //   -Dr   (force-delete a remote-tracking branch)
+        //   -vD   (verbose + force-delete)
+        //   -fv   (force + verbose)
+        //   -vdf  (verbose + delete + force)
+        assert_blocks_with_pattern(&pack, "git branch -Dr origin/feature", "branch-force-delete");
+        assert_blocks_with_pattern(&pack, "git branch -vD feature", "branch-force-delete");
+        assert_blocks_with_pattern(&pack, "git branch -fv feature", "branch-force-delete");
+        assert_blocks_with_pattern(&pack, "git branch -vdf feature", "branch-force-delete");
+
+        // Safe cases: lowercase `-d` alone deletes only if merged. Listing
+        // flags without D/f must NOT trigger the rule.
+        assert!(
+            pack.check("git branch -d merged-feature").is_none(),
+            "non-forcing `-d` should not be blocked"
+        );
+        assert!(
+            pack.check("git branch -vd merged-feature").is_none(),
+            "non-forcing `-vd` should not be blocked"
+        );
+        assert!(
+            pack.check("git branch -a").is_none(),
+            "listing all branches must not be blocked"
+        );
     }
 
     #[test]
