@@ -606,12 +606,13 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
 
     vec![
         // rm -rf on root or home paths (CRITICAL - catastrophic, never allow)
-        // `['"\\]?` before `[/~]` so `rm -rf "/"`, `rm -rf '/'`, and
-        // `rm -rf \/` (backslash-escaped root) are all caught — shell
-        // unquotes/unescapes any of those to `/` before rm sees them.
+        // Target set covers:
+        //   - literal `/` or `~` (optionally quoted/backslash-escaped)
+        //   - `$HOME` and `${HOME}` (optionally quoted), which the shell
+        //     expands to the user's home directory before rm sees it
         destructive_pattern!(
             "rm-rf-root-home",
-            r#"rm\s+-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*\s+['"\\]?[/~]|rm\s+-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*\s+['"\\]?[/~]"#,
+            r#"rm\s+-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*\s+['"\\]?(?:[/~]|\$\{?HOME\b)|rm\s+-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*\s+['"\\]?(?:[/~]|\$\{?HOME\b)"#,
             "rm -rf on root or home paths is EXTREMELY DANGEROUS. This command will NOT be executed. Ask the user to run it manually if truly needed.",
             Critical,
             "This command would recursively delete files starting from the root filesystem (/) \
@@ -635,7 +636,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // Critical root deletion.
         destructive_pattern!(
             "rm-r-f-separate-root-home",
-            r#"rm\s+(-[a-zA-Z]+\s+)*-[rR]\s+(-[a-zA-Z]+\s+)*-f\s+['"\\]?[/~]|rm\s+(-[a-zA-Z]+\s+)*-f\s+(-[a-zA-Z]+\s+)*-[rR]\s+['"\\]?[/~]"#,
+            r#"rm\s+(-[a-zA-Z]+\s+)*-[rR]\s+(-[a-zA-Z]+\s+)*-f\s+['"\\]?(?:[/~]|\$\{?HOME\b)|rm\s+(-[a-zA-Z]+\s+)*-f\s+(-[a-zA-Z]+\s+)*-[rR]\s+['"\\]?(?:[/~]|\$\{?HOME\b)"#,
             "rm with separate -r -f flags targeting root or home is EXTREMELY DANGEROUS.",
             Critical,
             "Separate `-r -f` flags on `/` or `~` have identical effect to `rm -rf /`: \
@@ -647,7 +648,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // (`rm --recursive --force /`, `rm --force --recursive /`).
         destructive_pattern!(
             "rm-recursive-force-root-home",
-            r#"rm\s+.*--recursive.*--force\s+['"\\]?[/~]|rm\s+.*--force.*--recursive\s+['"\\]?[/~]"#,
+            r#"rm\s+.*--recursive.*--force\s+['"\\]?(?:[/~]|\$\{?HOME\b)|rm\s+.*--force.*--recursive\s+['"\\]?(?:[/~]|\$\{?HOME\b)"#,
             "rm --recursive --force targeting root or home is EXTREMELY DANGEROUS.",
             Critical,
             "The long-flag form has identical effect to `rm -rf /`: recursive, forced, \
@@ -797,6 +798,17 @@ mod tests {
         assert_blocks_with_severity(
             &pack,
             "rm --recursive --force \\/",
+            Severity::Critical,
+        );
+        // $HOME variants: shell expands to the user's home directory.
+        assert_blocks_with_severity(&pack, "rm -rf $HOME", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf \"$HOME\"", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf ${HOME}", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf \"${HOME}\"", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -r -f $HOME", Severity::Critical);
+        assert_blocks_with_severity(
+            &pack,
+            "rm --recursive --force $HOME",
             Severity::Critical,
         );
 
