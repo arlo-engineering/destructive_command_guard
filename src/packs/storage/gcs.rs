@@ -65,7 +65,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gsutil bucket removal
         destructive_pattern!(
             "gsutil-rb",
-            r"gsutil\b.*?\brb\b",
+            r"gsutil\b.*?\brb(?=\s|$)",
             "gsutil rb removes a GCS bucket.",
             Critical,
             "Removing a GCS bucket deletes the bucket and potentially all objects within it. \
@@ -76,10 +76,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              - gsutil -m cp -r gs://bucket ./backup: Backup contents locally\n\
              - Enable object versioning before testing deletions"
         ),
-        // gsutil object removal
+        // gsutil object removal. Require `rm` to be followed by whitespace
+        // or end-of-string so `rm.txt` filenames in unrelated gsutil
+        // invocations don't false-match.
         destructive_pattern!(
             "gsutil-rm",
-            r"gsutil\b.*?\brm\b",
+            r"gsutil\b.*?\brm(?=\s|$)",
             "gsutil rm deletes objects from GCS.",
             High,
             "Deleting GCS objects permanently removes data unless versioning is enabled. \
@@ -198,6 +200,17 @@ mod tests {
         assert_blocks_with_pattern(&pack, "gsutil -f rb gs://bucket", "gsutil-rb");
         assert_blocks_with_pattern(&pack, "gsutil rm gs://bucket/file", "gsutil-rm");
         assert_blocks_with_pattern(&pack, "gsutil -m rm -r gs://bucket", "gsutil-rm");
+
+        // Should NOT match: `rb` and `rm` appearing as substrings in filenames
+        // of unrelated subcommands (e.g. `gsutil cors set rb.json`).
+        assert!(
+            pack.check("gsutil cors set rb.json").is_none(),
+            "gsutil cors set rb.json should not false-match gsutil-rb"
+        );
+        assert!(
+            pack.check("gsutil cp rm.txt gs://bucket/").is_none(),
+            "gsutil cp rm.txt should not false-match gsutil-rm"
+        );
         assert_blocks_with_pattern(
             &pack,
             "gsutil rsync -d gs://src gs://dst",

@@ -119,10 +119,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              List first: gsutil ls -r gs://bucket/path/\n\
              Enable versioning: gsutil versioning set on gs://bucket"
         ),
-        // gsutil rb (remove bucket)
+        // gsutil rb (remove bucket). Require `rb` to be followed by whitespace
+        // or end-of-string so filenames like `rb.json` in an unrelated
+        // gsutil invocation (e.g. `gsutil cors set rb.json`) don't false-match.
         destructive_pattern!(
             "gsutil-rb",
-            r"gsutil\b.*?\brb\b",
+            r"gsutil\b.*?\brb(?=\s|$)",
             "gsutil rb removes the entire GCS bucket.",
             Critical,
             "gsutil rb removes the entire Cloud Storage bucket:\n\n\
