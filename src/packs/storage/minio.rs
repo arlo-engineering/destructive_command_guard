@@ -27,36 +27,46 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a remote/path/user-name containing
+    // the subcommand keyword as a substring (e.g. `ls-archive/bucket`,
+    // `cp-mirror/data`, `admin-info-pw`) doesn't short-circuit destructive
+    // mc ops via the safe rule.
     vec![
         // List operations
-        safe_pattern!("mc-ls", r"\bmc\s+(?:--?\S+\s+)*ls\b"),
+        safe_pattern!("mc-ls", r"\bmc\s+(?:--?\S+\s+)*ls(?=\s|$)"),
         // Read operations
-        safe_pattern!("mc-cat", r"\bmc\s+(?:--?\S+\s+)*cat\b"),
-        safe_pattern!("mc-head", r"\bmc\s+(?:--?\S+\s+)*head\b"),
-        safe_pattern!("mc-stat", r"\bmc\s+(?:--?\S+\s+)*stat\b"),
+        safe_pattern!("mc-cat", r"\bmc\s+(?:--?\S+\s+)*cat(?=\s|$)"),
+        safe_pattern!("mc-head", r"\bmc\s+(?:--?\S+\s+)*head(?=\s|$)"),
+        safe_pattern!("mc-stat", r"\bmc\s+(?:--?\S+\s+)*stat(?=\s|$)"),
         // Copy operations (non-destructive)
-        safe_pattern!("mc-cp", r"\bmc\s+(?:--?\S+\s+)*cp\b"),
+        safe_pattern!("mc-cp", r"\bmc\s+(?:--?\S+\s+)*cp(?=\s|$)"),
         // Diff/compare
-        safe_pattern!("mc-diff", r"\bmc\s+(?:--?\S+\s+)*diff\b"),
+        safe_pattern!("mc-diff", r"\bmc\s+(?:--?\S+\s+)*diff(?=\s|$)"),
         // Find
-        safe_pattern!("mc-find", r"\bmc\s+(?:--?\S+\s+)*find\b"),
+        safe_pattern!("mc-find", r"\bmc\s+(?:--?\S+\s+)*find(?=\s|$)"),
         // Disk usage
-        safe_pattern!("mc-du", r"\bmc\s+(?:--?\S+\s+)*du\b"),
+        safe_pattern!("mc-du", r"\bmc\s+(?:--?\S+\s+)*du(?=\s|$)"),
         // Version/help
-        safe_pattern!("mc-version", r"\bmc\s+(?:--?\S+\s+)*version\b"),
+        safe_pattern!("mc-version", r"\bmc\s+(?:--?\S+\s+)*version(?=\s|$)"),
         safe_pattern!("mc-help", r"\bmc\s+(?:--?\S+\s+)*(?:--help|-h)\b"),
         // Admin info (read-only)
-        safe_pattern!("mc-admin-info", r"\bmc\s+(?:--?\S+\s+)*admin\s+info\b"),
+        safe_pattern!(
+            "mc-admin-info",
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+info(?=\s|$)"
+        ),
         safe_pattern!(
             "mc-admin-user-list",
-            r"\bmc\s+(?:--?\S+\s+)*admin\s+user\s+list\b"
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+user\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "mc-admin-policy-list",
-            r"\bmc\s+(?:--?\S+\s+)*admin\s+policy\s+list\b"
+            r"\bmc\s+(?:--?\S+\s+)*admin\s+policy\s+list(?=\s|$)"
         ),
         // Alias management (config, not data)
-        safe_pattern!("mc-alias-list", r"\bmc\s+(?:--?\S+\s+)*alias\s+list\b"),
+        safe_pattern!(
+            "mc-alias-list",
+            r"\bmc\s+(?:--?\S+\s+)*alias\s+list(?=\s|$)"
+        ),
     ]
 }
 
