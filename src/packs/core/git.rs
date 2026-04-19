@@ -283,9 +283,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             }
         ),
         // force push can destroy remote history (CRITICAL - affects shared history)
+        // `push-force-long` — `.*--force` would match `--force` embedded in a
+        // branch name like `feature--force` (false positive). Use the
+        // `(?:\S+\s+)*` token walker so we only reach a fresh arg token.
         destructive_pattern!(
             "push-force-long",
-            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+.*--force(?![-a-z])",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+(?:\S+\s+)*--force(?![-a-z])",
             "Force push can destroy remote history. Use --force-with-lease if necessary.",
             Critical,
             "git push --force overwrites remote history with your local history. This can \
@@ -556,6 +559,12 @@ mod tests {
         assert!(
             pack.check("git push origin hotfix-fallback").is_none(),
             "branch named `hotfix-fallback` must not be treated as a force flag"
+        );
+        // Branch name literally containing `--force` must not be treated as
+        // the long force flag.
+        assert!(
+            pack.check("git push origin feature--force").is_none(),
+            "branch name `feature--force` must not trigger push-force-long"
         );
 
         // --force-with-lease (safer) must NOT trigger push-force-short.
