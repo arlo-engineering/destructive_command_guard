@@ -40,8 +40,8 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("deck-dump", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+dump(?=\s|$)"),
         safe_pattern!("deck-diff", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+diff(?=\s|$)"),
         safe_pattern!("deck-validate", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+validate(?=\s|$)"),
-        safe_pattern!("deck-convert", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+convert\b"),
-        safe_pattern!("deck-file", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+file\b"),
+        safe_pattern!("deck-convert", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+convert(?=\s|$)"),
+        safe_pattern!("deck-file", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+file(?=\s|$)"),
         // Kong Admin API - explicit GET requests only
         safe_pattern!(
             "kong-admin-explicit-get",
