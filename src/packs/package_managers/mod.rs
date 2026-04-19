@@ -32,28 +32,28 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // npm/yarn/pnpm install are generally safe
-        safe_pattern!("npm-install", r"npm\b.*?\s+(?:install|i|ci)(?=\s|$)"),
-        safe_pattern!("yarn-add", r"yarn\b.*?\s+(?:add|install)(?=\s|$)"),
-        safe_pattern!("pnpm-install", r"pnpm\b.*?\s+(?:add|install|i)(?=\s|$)"),
+        safe_pattern!("npm-install", r"npm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:install|i|ci)(?=\s|$)"),
+        safe_pattern!("yarn-add", r"yarn\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:add|install)(?=\s|$)"),
+        safe_pattern!("pnpm-install", r"pnpm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:add|install|i)(?=\s|$)"),
         // list/info commands are safe
-        safe_pattern!("npm-list", r"npm\b.*?\s+(?:list|ls|info|view)(?=\s|$)"),
-        safe_pattern!("yarn-list", r"yarn\b.*?\s+(?:list|info|why)(?=\s|$)"),
+        safe_pattern!("npm-list", r"npm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:list|ls|info|view)(?=\s|$)"),
+        safe_pattern!("yarn-list", r"yarn\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:list|info|why)(?=\s|$)"),
         // audit is safe
-        safe_pattern!("npm-audit", r"npm\b.*?\s+audit(?=\s|$)"),
-        safe_pattern!("yarn-audit", r"yarn\b.*?\s+audit(?=\s|$)"),
+        safe_pattern!("npm-audit", r"npm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+audit(?=\s|$)"),
+        safe_pattern!("yarn-audit", r"yarn\b(?:\s+--?\S+(?:\s+\S+)?)*\s+audit(?=\s|$)"),
         // pip list/show are safe
-        safe_pattern!("pip-list", r"pip\b.*?\s+(?:list|show|freeze)(?=\s|$)"),
+        safe_pattern!("pip-list", r"pip\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:list|show|freeze)(?=\s|$)"),
         // poetry show/info are safe
-        safe_pattern!("poetry-show", r"poetry\b.*?\s+show(?=\s|$)"),
-        safe_pattern!("poetry-env-list", r"poetry\b.*?\benv\s+list(?=\s|$)"),
+        safe_pattern!("poetry-show", r"poetry\b(?:\s+--?\S+(?:\s+\S+)?)*\s+show(?=\s|$)"),
+        safe_pattern!("poetry-env-list", r"poetry\b(?:\s+--?\S+(?:\s+\S+)?)*\s+env\s+list(?=\s|$)"),
         // cargo build/test/check are safe
         safe_pattern!(
             "cargo-safe",
-            r"cargo\b.*?\s+(?:build|test|check|clippy|fmt|doc|bench)\b"
+            r"cargo\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:build|test|check|clippy|fmt|doc|bench)\b"
         ),
         // apt list/show are safe
-        safe_pattern!("apt-list", r"apt\b.*?\s+(?:list|show|search)(?=\s|$)"),
-        safe_pattern!("apt-get-list", r"apt-get\b.*?\s+(?:update|upgrade)(?!\s+.*-y)"),
+        safe_pattern!("apt-list", r"apt\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:list|show|search)(?=\s|$)"),
+        safe_pattern!("apt-get-list", r"apt-get\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:update|upgrade)(?!\s+.*-y)"),
         // dry-run flags
         safe_pattern!("npm-dry-run", r"npm\b.*--dry-run"),
         safe_pattern!("cargo-dry-run", r"cargo\b.*--dry-run"),
