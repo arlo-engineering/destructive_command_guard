@@ -316,9 +316,16 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
                 ]
             }
         ),
+        // `push-force-short` — catch combined forms (`-uf`, `-fv`, `-vf`,
+        // `-fuvq`) that evaluate to `-f` at parse time. The token-walker
+        // `(?:\S+\s+)*` skips unrelated args (branches/remotes) WITHOUT
+        // descending into hyphens inside a single token — so a branch name
+        // like `feature-f` or `hotfix-f` no longer false-matches a flag
+        // containing `f`. `--force-with-lease` is safer and is already
+        // excluded by the `push-force-long` rule (which takes precedence).
         destructive_pattern!(
             "push-force-short",
-            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+.*-f\b",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+(?:\S+\s+)*-[a-zA-Z]*f[a-zA-Z]*\b",
             "Force push (-f) can destroy remote history. Use --force-with-lease if necessary.",
             Critical,
             "git push -f (short for --force) overwrites remote history with your local history. \
@@ -532,6 +539,30 @@ mod tests {
             &pack,
             "git push --force origin main",
             "destroy remote history",
+        );
+
+        // Combined short-flag forms that resolve to `-f` at parse time.
+        assert_blocks_with_severity(&pack, "git push -uf origin main", Severity::Critical);
+        assert_blocks_with_severity(&pack, "git push -fv origin main", Severity::Critical);
+        assert_blocks_with_severity(&pack, "git push -fuv origin main", Severity::Critical);
+        assert_blocks_with_severity(&pack, "git push -vf origin main", Severity::Critical);
+
+        // Branch names that happen to contain `-f` must NOT be treated as a
+        // force flag.
+        assert!(
+            pack.check("git push origin feature-f").is_none(),
+            "branch named `feature-f` must not be treated as a force flag"
+        );
+        assert!(
+            pack.check("git push origin hotfix-fallback").is_none(),
+            "branch named `hotfix-fallback` must not be treated as a force flag"
+        );
+
+        // --force-with-lease (safer) must NOT trigger push-force-short.
+        // (push-force-long's negative lookahead already excludes it.)
+        assert!(
+            pack.check("git push --force-with-lease origin main").is_none(),
+            "--force-with-lease is the safer alternative and must not be blocked"
         );
     }
 
