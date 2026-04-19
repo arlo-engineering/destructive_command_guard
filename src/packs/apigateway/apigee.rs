@@ -28,69 +28,69 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // gcloud apigee - list/describe operations
         safe_pattern!(
             "gcloud-apigee-apis-list",
-            r"gcloud\b.*?\bapigee\s+apis\s+list\b"
+            r"gcloud\b.*?\bapigee\s+apis\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-apis-describe",
-            r"gcloud\b.*?\bapigee\s+apis\s+describe\b"
+            r"gcloud\b.*?\bapigee\s+apis\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-environments-list",
-            r"gcloud\b.*?\bapigee\s+environments\s+list\b"
+            r"gcloud\b.*?\bapigee\s+environments\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-environments-describe",
-            r"gcloud\b.*?\bapigee\s+environments\s+describe\b"
+            r"gcloud\b.*?\bapigee\s+environments\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-developers-list",
-            r"gcloud\b.*?\bapigee\s+developers\s+list\b"
+            r"gcloud\b.*?\bapigee\s+developers\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-developers-describe",
-            r"gcloud\b.*?\bapigee\s+developers\s+describe\b"
+            r"gcloud\b.*?\bapigee\s+developers\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-products-list",
-            r"gcloud\b.*?\bapigee\s+products\s+list\b"
+            r"gcloud\b.*?\bapigee\s+products\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-products-describe",
-            r"gcloud\b.*?\bapigee\s+products\s+describe\b"
+            r"gcloud\b.*?\bapigee\s+products\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-organizations-list",
-            r"gcloud\b.*?\bapigee\s+organizations\s+list\b"
+            r"gcloud\b.*?\bapigee\s+organizations\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-organizations-describe",
-            r"gcloud\b.*?\bapigee\s+organizations\s+describe\b"
+            r"gcloud\b.*?\bapigee\s+organizations\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-deployments-list",
-            r"gcloud\b.*?\bapigee\s+deployments\s+list\b"
+            r"gcloud\b.*?\bapigee\s+deployments\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-apigee-deployments-describe",
-            r"gcloud\b.*?\bapigee\s+deployments\s+describe\b"
+            r"gcloud\b.*?\bapigee\s+deployments\s+describe(?=\s|$)"
         ),
         // apigeecli - list operations
-        safe_pattern!("apigeecli-apis-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+apis\s+list\b"),
-        safe_pattern!("apigeecli-apis-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+apis\s+get\b"),
-        safe_pattern!("apigeecli-products-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+products\s+list\b"),
-        safe_pattern!("apigeecli-products-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+products\s+get\b"),
+        safe_pattern!("apigeecli-apis-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+apis\s+list(?=\s|$)"),
+        safe_pattern!("apigeecli-apis-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+apis\s+get(?=\s|$)"),
+        safe_pattern!("apigeecli-products-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+products\s+list(?=\s|$)"),
+        safe_pattern!("apigeecli-products-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+products\s+get(?=\s|$)"),
         safe_pattern!(
             "apigeecli-developers-list",
-            r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+developers\s+list\b"
+            r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+developers\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "apigeecli-developers-get",
-            r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+developers\s+get\b"
+            r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+developers\s+get(?=\s|$)"
         ),
-        safe_pattern!("apigeecli-envs-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+envs\s+list\b"),
-        safe_pattern!("apigeecli-envs-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+envs\s+get\b"),
-        safe_pattern!("apigeecli-orgs-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+orgs\s+list\b"),
-        safe_pattern!("apigeecli-orgs-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+orgs\s+get\b"),
+        safe_pattern!("apigeecli-envs-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+envs\s+list(?=\s|$)"),
+        safe_pattern!("apigeecli-envs-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+envs\s+get(?=\s|$)"),
+        safe_pattern!("apigeecli-orgs-list", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+orgs\s+list(?=\s|$)"),
+        safe_pattern!("apigeecli-orgs-get", r"apigeecli(?:\s+--?\S+(?:\s+\S+)?)*\s+orgs\s+get(?=\s|$)"),
         // Help commands
         safe_pattern!(
             "gcloud-apigee-help",

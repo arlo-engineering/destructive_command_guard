@@ -28,18 +28,18 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // Kong CLI - read operations
-        safe_pattern!("kong-version", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:version|--version|-v)\b"),
-        safe_pattern!("kong-help", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:help|--help|-h)\b"),
-        safe_pattern!("kong-health", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+health\b"),
-        safe_pattern!("kong-check", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+check\b"),
-        safe_pattern!("kong-config-parse", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+config\s+(?:parse|init)\b"),
+        safe_pattern!("kong-version", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:version|--version|-v)(?=\s|$)"),
+        safe_pattern!("kong-help", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:help|--help|-h)(?=\s|$)"),
+        safe_pattern!("kong-health", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+health(?=\s|$)"),
+        safe_pattern!("kong-check", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+check(?=\s|$)"),
+        safe_pattern!("kong-config-parse", r"kong(?:\s+--?\S+(?:\s+\S+)?)*\s+config\s+(?:parse|init)(?=\s|$)"),
         // deck CLI - read/safe operations
-        safe_pattern!("deck-version", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:version|--version)\b"),
-        safe_pattern!("deck-help", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:help|--help|-h)\b"),
-        safe_pattern!("deck-ping", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+ping\b"),
-        safe_pattern!("deck-dump", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+dump\b"),
-        safe_pattern!("deck-diff", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+diff\b"),
-        safe_pattern!("deck-validate", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+validate\b"),
+        safe_pattern!("deck-version", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:version|--version)(?=\s|$)"),
+        safe_pattern!("deck-help", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:help|--help|-h)(?=\s|$)"),
+        safe_pattern!("deck-ping", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+ping(?=\s|$)"),
+        safe_pattern!("deck-dump", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+dump(?=\s|$)"),
+        safe_pattern!("deck-diff", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+diff(?=\s|$)"),
+        safe_pattern!("deck-validate", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+validate(?=\s|$)"),
         safe_pattern!("deck-convert", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+convert\b"),
         safe_pattern!("deck-file", r"deck(?:\s+--?\S+(?:\s+\S+)?)*\s+file\b"),
         // Kong Admin API - explicit GET requests only

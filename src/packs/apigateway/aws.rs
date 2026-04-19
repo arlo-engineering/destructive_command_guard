@@ -36,92 +36,92 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         // REST API (APIGateway) - read operations
         safe_pattern!(
             "apigateway-get-rest-api",
-            r"\baws\b.*?\bapigateway\s+get-rest-api\b"
+            r"\baws\b.*?\bapigateway\s+get-rest-api(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-rest-apis",
-            r"\baws\b.*?\bapigateway\s+get-rest-apis\b"
+            r"\baws\b.*?\bapigateway\s+get-rest-apis(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-resources",
-            r"\baws\b.*?\bapigateway\s+get-resources\b"
+            r"\baws\b.*?\bapigateway\s+get-resources(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-resource",
-            r"\baws\b.*?\bapigateway\s+get-resource\b"
+            r"\baws\b.*?\bapigateway\s+get-resource(?=\s|$)"
         ),
-        safe_pattern!("apigateway-get-method", r"\baws\b.*?\bapigateway\s+get-method\b"),
-        safe_pattern!("apigateway-get-stages", r"\baws\b.*?\bapigateway\s+get-stages\b"),
-        safe_pattern!("apigateway-get-stage", r"\baws\b.*?\bapigateway\s+get-stage\b"),
+        safe_pattern!("apigateway-get-method", r"\baws\b.*?\bapigateway\s+get-method(?=\s|$)"),
+        safe_pattern!("apigateway-get-stages", r"\baws\b.*?\bapigateway\s+get-stages(?=\s|$)"),
+        safe_pattern!("apigateway-get-stage", r"\baws\b.*?\bapigateway\s+get-stage(?=\s|$)"),
         safe_pattern!(
             "apigateway-get-deployments",
-            r"\baws\b.*?\bapigateway\s+get-deployments\b"
+            r"\baws\b.*?\bapigateway\s+get-deployments(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-deployment",
-            r"\baws\b.*?\bapigateway\s+get-deployment\b"
+            r"\baws\b.*?\bapigateway\s+get-deployment(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-api-keys",
-            r"\baws\b.*?\bapigateway\s+get-api-keys\b"
+            r"\baws\b.*?\bapigateway\s+get-api-keys(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-api-key",
-            r"\baws\b.*?\bapigateway\s+get-api-key\b"
+            r"\baws\b.*?\bapigateway\s+get-api-key(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-authorizers",
-            r"\baws\b.*?\bapigateway\s+get-authorizers\b"
+            r"\baws\b.*?\bapigateway\s+get-authorizers(?=\s|$)"
         ),
-        safe_pattern!("apigateway-get-models", r"\baws\b.*?\bapigateway\s+get-models\b"),
+        safe_pattern!("apigateway-get-models", r"\baws\b.*?\bapigateway\s+get-models(?=\s|$)"),
         safe_pattern!(
             "apigateway-get-usage-plans",
-            r"\baws\b.*?\bapigateway\s+get-usage-plans\b"
+            r"\baws\b.*?\bapigateway\s+get-usage-plans(?=\s|$)"
         ),
         safe_pattern!(
             "apigateway-get-domain-names",
-            r"\baws\b.*?\bapigateway\s+get-domain-names\b"
+            r"\baws\b.*?\bapigateway\s+get-domain-names(?=\s|$)"
         ),
         // HTTP API (APIGatewayV2) - read operations
-        safe_pattern!("apigatewayv2-get-apis", r"\baws\b.*?\bapigatewayv2\s+get-apis\b"),
-        safe_pattern!("apigatewayv2-get-api", r"\baws\b.*?\bapigatewayv2\s+get-api\b"),
+        safe_pattern!("apigatewayv2-get-apis", r"\baws\b.*?\bapigatewayv2\s+get-apis(?=\s|$)"),
+        safe_pattern!("apigatewayv2-get-api", r"\baws\b.*?\bapigatewayv2\s+get-api(?=\s|$)"),
         safe_pattern!(
             "apigatewayv2-get-routes",
-            r"\baws\b.*?\bapigatewayv2\s+get-routes\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-routes(?=\s|$)"
         ),
         safe_pattern!(
             "apigatewayv2-get-route",
-            r"\baws\b.*?\bapigatewayv2\s+get-route\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-route(?=\s|$)"
         ),
         safe_pattern!(
             "apigatewayv2-get-integrations",
-            r"\baws\b.*?\bapigatewayv2\s+get-integrations\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-integrations(?=\s|$)"
         ),
         safe_pattern!(
             "apigatewayv2-get-integration",
-            r"\baws\b.*?\bapigatewayv2\s+get-integration\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-integration(?=\s|$)"
         ),
         safe_pattern!(
             "apigatewayv2-get-stages",
-            r"\baws\b.*?\bapigatewayv2\s+get-stages\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-stages(?=\s|$)"
         ),
         safe_pattern!(
             "apigatewayv2-get-stage",
-            r"\baws\b.*?\bapigatewayv2\s+get-stage\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-stage(?=\s|$)"
         ),
         safe_pattern!(
             "apigatewayv2-get-authorizers",
-            r"\baws\b.*?\bapigatewayv2\s+get-authorizers\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-authorizers(?=\s|$)"
         ),
         safe_pattern!(
             "apigatewayv2-get-domain-names",
-            r"\baws\b.*?\bapigatewayv2\s+get-domain-names\b"
+            r"\baws\b.*?\bapigatewayv2\s+get-domain-names(?=\s|$)"
         ),
         // General AWS help
-        safe_pattern!("apigateway-help", r"\baws\b.*?\bapigateway\s+(?:help|\-\-help)\b"),
+        safe_pattern!("apigateway-help", r"\baws\b.*?\bapigateway\s+(?:help|\-\-help)(?=\s|$)"),
         safe_pattern!(
             "apigatewayv2-help",
-            r"\baws\b.*?\bapigatewayv2\s+(?:help|\-\-help)\b"
+            r"\baws\b.*?\bapigatewayv2\s+(?:help|\-\-help)(?=\s|$)"
         ),
     ]
 }
