@@ -2316,6 +2316,70 @@ mod tests {
     }
 
     #[test]
+    fn compound_command_with_safe_prefix_and_destructive_suffix_is_blocked() {
+        // End-to-end regression: `docker ps; docker system prune -a --volumes`
+        // must be blocked. This is the compound-command bypass class. We
+        // check the pack's own `check` method on the raw command since
+        // that's what the evaluator ultimately calls.
+        let pack = crate::packs::containers::docker::create_pack();
+        assert!(
+            pack.check("docker ps; docker system prune -a --volumes")
+                .is_some(),
+            "safe prefix (`docker ps`) must not short-circuit destructive \
+             `docker system prune` in the same compound command"
+        );
+        assert!(
+            pack.check("docker ps && docker system prune -a --volumes")
+                .is_some(),
+            "`&&`-joined compound command with safe prefix must still block"
+        );
+        assert!(
+            pack.check("echo ok; docker system prune -a --volumes")
+                .is_some(),
+            "unrelated safe prefix must not bypass destructive suffix"
+        );
+    }
+
+    #[test]
+    fn pack_aware_quick_reject_does_not_skip_compound_command_with_keyword_in_later_segment() {
+        // Regression for a critical bypass class:
+        //   `docker ps; docker system prune -a --volumes`
+        // The fast substring check finds `docker`, so the cheap path doesn't
+        // return early. But if only `docker ps` is classified as an
+        // executable span and the trailing `docker system prune …` is
+        // misclassified (e.g. as data because the separator detection is
+        // off-by-one), the span gate fails to find the destructive keyword
+        // (`prune`) and the whole command silently quick-rejects — skipping
+        // pack evaluation entirely and letting the destructive second
+        // segment through.
+        //
+        // The fix this test enforces: when any enabled keyword appears
+        // *anywhere* in the command's byte content, quick-reject must NOT
+        // return true. (The later pack evaluation still has to decide
+        // safe/destructive — that is not this test's concern.)
+        let keywords: Vec<&str> = vec!["docker", "prune", "rmi", "volume"];
+
+        assert!(
+            !pack_aware_quick_reject("docker ps; docker system prune -a --volumes", &keywords),
+            "quick-reject must not skip evaluation for compound command \
+             containing destructive second segment"
+        );
+        assert!(
+            !pack_aware_quick_reject(
+                "docker ps && docker system prune -a --volumes",
+                &keywords
+            ),
+            "quick-reject must not skip evaluation for `&&`-joined compound \
+             command with destructive second segment"
+        );
+        assert!(
+            !pack_aware_quick_reject("echo hi; docker system prune -a --volumes", &keywords),
+            "quick-reject must not skip evaluation when only the second \
+             segment references a pack keyword"
+        );
+    }
+
+    #[test]
     fn pack_aware_quick_reject_handles_multiword_keywords_with_extra_space() {
         let keywords: Vec<&str> = vec!["gcloud storage"];
 
