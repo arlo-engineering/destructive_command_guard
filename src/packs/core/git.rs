@@ -78,7 +78,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              Safer alternatives:\n\
              - git stash: Save changes temporarily, restore later with 'git stash pop'\n\
              - git diff <path>: Review what would be lost before discarding\n\n\
-             Preview changes first:\n  git diff -- <path>",
+             Preview changes first:\n  git diff -- <path>\n\n\
+             Recovering from a failed `git pull --rebase`?\n\
+             Run `dcg rebase-recover` in this repo, then retry the command. This issues a \
+             short-lived, single-shot permit that unblocks this rule only. A rebase already \
+             in progress (`.git/rebase-merge/` or `.git/rebase-apply/` present) auto-allows \
+             the same rule without a permit.",
             &const {
                 [
                     PatternSuggestion::new(
@@ -134,7 +139,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              - git restore --staged <path>: Only unstage, keeps working directory changes\n\
              - git stash: Save all changes temporarily\n\
              - git diff <path>: Review what would be lost\n\n\
-             Preview changes first:\n  git diff <path>",
+             Preview changes first:\n  git diff <path>\n\n\
+             Recovering from a failed `git pull --rebase`?\n\
+             Run `dcg rebase-recover` in this repo, then retry the command. This issues a \
+             short-lived, single-shot permit that unblocks this rule only. A rebase already \
+             in progress (`.git/rebase-merge/` or `.git/rebase-apply/` present) auto-allows \
+             the same rule without a permit.",
             &const {
                 [
                     PatternSuggestion::new(

@@ -539,6 +539,58 @@ fn main() {
         writer.log(entry);
     }
 
+    // Rebase-recovery unblock (issue #104).
+    //
+    // Before emitting a hard deny, check whether this is one of the narrow
+    // "recovery" patterns (`checkout-discard`, `restore-worktree`, etc.)
+    // AND a recovery signal is active: either a rebase is in progress
+    // (`.git/rebase-merge/` or `.git/rebase-apply/`) or a short-lived
+    // `dcg rebase-recover` permit was issued. If yes, convert the deny
+    // into an allow with a stderr note and (for the permit case) consume
+    // the cookie so subsequent unrelated commands stay blocked.
+    //
+    // Safety: only fires when BOTH (a) the matched pattern is on the
+    // small recovery allowlist, AND (b) a recovery signal is active.
+    // Outside this narrow window the original deny path is unchanged.
+    if matches!(mode, DecisionMode::Deny) {
+        if let Some(cwd_ref) = cwd_path.as_deref() {
+            if let Some(reason) =
+                destructive_command_guard::rebase_recovery::should_allow_recovery(
+                    cwd_ref, pack, pattern,
+                )
+            {
+                // Consume the permit if that's why we allowed (single-shot).
+                if matches!(
+                    reason,
+                    destructive_command_guard::rebase_recovery::RecoveryReason::ActivePermit(_)
+                ) {
+                    destructive_command_guard::rebase_recovery::consume_permit(cwd_ref);
+                }
+                // Inform on stderr (visible to the agent and to humans).
+                // Stays silent when stderr isn't a TTY and robot mode is on,
+                // but the message itself is always safe to emit.
+                eprintln!(
+                    "[dcg] Allowing `{}` → rebase-recovery mode ({})",
+                    pattern.unwrap_or("<unknown>"),
+                    reason.label()
+                );
+                if let Some(writer) = history_writer.as_ref() {
+                    let entry = build_history_entry(
+                        &command,
+                        &working_dir,
+                        HistoryOutcome::Allow,
+                        eval_duration,
+                        pack,
+                        pattern,
+                        Some("rebase-recovery"),
+                    );
+                    writer.log(entry);
+                }
+                return;
+            }
+        }
+    }
+
     match mode {
         DecisionMode::Deny => {
             let store_path = PendingExceptionStore::default_path(cwd_path.as_deref());
