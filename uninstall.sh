@@ -488,8 +488,24 @@ main() {
 
     # Confirmation
     if [ "$YES" -eq 0 ]; then
+        # When invoked via `curl … | bash`, stdin is the pipe from curl, not
+        # the user's terminal — `read` returns immediately with empty input
+        # and the default "N" answer silently cancels the uninstall. Read
+        # from /dev/tty instead so the curl-pipe-bash one-liner works.
+        # If /dev/tty isn't available (e.g. CI), refuse with a clear message
+        # rather than silently cancelling.
         printf "${YELLOW}Proceed with uninstall? [y/N]${NC} "
-        read -r response
+        if [ -r /dev/tty ]; then
+            read -r response < /dev/tty
+        elif [ -t 0 ]; then
+            read -r response
+        else
+            echo
+            log "${YELLOW}Cannot read confirmation (no TTY available).${NC}"
+            log "${YELLOW}Re-run with --yes to skip the prompt, e.g.:${NC}"
+            log "    curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/uninstall.sh | bash -s -- --yes"
+            return 1
+        fi
         case "$response" in
             [yY]|[yY][eE][sS])
                 ;;
