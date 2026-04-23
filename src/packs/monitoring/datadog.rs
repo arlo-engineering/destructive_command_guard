@@ -25,14 +25,17 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a monitor/dashboard name containing
+    // `get` or `list` as a substring doesn't short-circuit destructive
+    // datadog-ci ops via the safe rule.
     vec![
         safe_pattern!(
             "datadog-ci-monitors-list",
-            r"datadog-ci\s+monitors\s+(?:get|list)\b"
+            r"datadog-ci\b(?:\s+--?\S+(?:\s+\S+)?)*\s+monitors\s+(?:get|list)(?=\s|$)"
         ),
         safe_pattern!(
             "datadog-ci-dashboards-list",
-            r"datadog-ci\s+dashboards\s+(?:get|list)\b"
+            r"datadog-ci\b(?:\s+--?\S+(?:\s+\S+)?)*\s+dashboards\s+(?:get|list)(?=\s|$)"
         ),
         safe_pattern!(
             "datadog-api-get",
@@ -45,7 +48,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
     vec![
         destructive_pattern!(
             "datadog-ci-monitors-delete",
-            r"datadog-ci\s+monitors\s+delete\b",
+            r"datadog-ci\b.*?\bmonitors\s+delete\b",
             "datadog-ci monitors delete removes a Datadog monitor.",
             High,
             "Deleting a Datadog monitor stops all alerting for that check. You will no \
@@ -58,7 +61,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "datadog-ci-dashboards-delete",
-            r"datadog-ci\s+dashboards\s+delete\b",
+            r"datadog-ci\b.*?\bdashboards\s+delete\b",
             "datadog-ci dashboards delete removes a Datadog dashboard.",
             High,
             "Deleting a dashboard removes all widgets, queries, and layout configuration. \
@@ -84,7 +87,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "terraform-datadog-destroy",
-            r"terraform\s+destroy\b.*\bdatadog_[a-zA-Z0-9_]+\b",
+            r"terraform\b.*?\bdestroy\b.*\bdatadog_[a-zA-Z0-9_]+\b",
             "terraform destroy targeting Datadog resources removes monitoring infrastructure.",
             High,
             "Terraform destroy removes Datadog monitors, dashboards, and other resources \

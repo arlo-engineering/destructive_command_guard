@@ -24,19 +24,29 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?!\S*\.\./)` in the target-path patterns blocks `..` directory-traversal
+    // escapes. Without it, `scp file user@host:/tmp/../etc/passwd` would match
+    // `scp-to-tmp` and bypass the `/etc` protection — the path starts with `/tmp/`
+    // but resolves to `/etc/passwd` on the remote end.
     vec![
         // Version/help
         safe_pattern!("scp-help", r"scp\b.*\s--?h(elp)?\b"),
         // Downloading from remote (remote:path first, local second)
         safe_pattern!("scp-download", r"scp\b.*\s(?:\S+@)?\S+:\S+\s+\.\S*\s*$"),
         // Copy to home directory
-        safe_pattern!("scp-to-home", r"scp\b.*\s(?:(?:\S+@)?\S+:)?~/\S+\s*$"),
+        safe_pattern!(
+            "scp-to-home",
+            r"scp\b.*\s(?:(?:\S+@)?\S+:)?~/(?!\S*\.\./)\S+\s*$"
+        ),
         // Copy to /tmp
-        safe_pattern!("scp-to-tmp", r"scp\b.*\s(?:(?:\S+@)?\S+:)?/tmp/\S*\s*$"),
+        safe_pattern!(
+            "scp-to-tmp",
+            r"scp\b.*\s(?:(?:\S+@)?\S+:)?/tmp/(?!\S*\.\./)\S*\s*$"
+        ),
         // Copy to /var/tmp (safe scratch space under /var)
         safe_pattern!(
             "scp-to-var-tmp",
-            r"scp\b.*\s(?:(?:\S+@)?\S+:)?/var/tmp(?:/\S*)?\s*$"
+            r"scp\b.*\s(?:(?:\S+@)?\S+:)?/var/tmp(?:/(?!\S*\.\./)\S*)?\s*$"
         ),
     ]
 }
@@ -227,5 +237,29 @@ mod tests {
         let pack = create_pack();
         assert_blocks_with_pattern(&pack, "scp libfoo.so user@host:/lib/", "scp-to-lib");
         assert_blocks_with_pattern(&pack, "scp libbar.so user@host:/lib64/", "scp-to-lib");
+    }
+
+    #[test]
+    fn path_traversal_does_not_bypass_via_safe() {
+        // `/tmp/../etc/passwd` resolves to `/etc/passwd` on the remote but the
+        // old `/tmp/\S*` safe pattern would accept it, short-circuiting before
+        // any destructive pattern ran. Verify the safe rules refuse `../`.
+        let pack = create_pack();
+        assert!(
+            pack.matches_safe("scp file user@host:/tmp/stash/"),
+            "normal /tmp copies remain safe"
+        );
+        assert!(
+            !pack.matches_safe("scp file user@host:/tmp/../etc/passwd"),
+            "traversal out of /tmp must NOT be treated as safe"
+        );
+        assert!(
+            !pack.matches_safe("scp file user@host:/var/tmp/../root/.ssh/authorized_keys"),
+            "traversal out of /var/tmp must NOT be treated as safe"
+        );
+        assert!(
+            !pack.matches_safe("scp file user@host:~/../root/.bashrc"),
+            "traversal out of ~ must NOT be treated as safe"
+        );
     }
 }

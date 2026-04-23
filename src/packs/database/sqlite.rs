@@ -26,15 +26,26 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // The previous `\.schema`, `\.tables`, `\.dump`, `\.backup` patterns matched
+    // those substrings anywhere in the command. That let a compound command like
+    //   sqlite3 mydb "DROP TABLE foo; .dump"
+    // short-circuit as safe (because `.dump` is present) and never reach the
+    // destructive `DROP TABLE` check. Dropped in favor of anchored variants.
     vec![
         // SELECT queries are safe
         safe_pattern!("select-query", r"(?i)^\s*SELECT\s+"),
-        // .schema, .tables, .dump are read-only
-        safe_pattern!("dot-schema", r"\.schema"),
-        safe_pattern!("dot-tables", r"\.tables"),
-        safe_pattern!("dot-dump", r"\.dump"),
-        // .backup is safe (creates backup)
-        safe_pattern!("dot-backup", r"\.backup"),
+        // sqlite3 invoked with a dot-command as the SQL argument (quoted).
+        // Require a quote boundary immediately before the dot-command so embedded
+        // `.dump` inside a longer statement cannot whitelist it.
+        safe_pattern!(
+            "sqlite3-dot-command",
+            r#"sqlite3\b[^|;&]*['"]\s*\.(?:schema|tables|dump|backup|help)\b[^'"]*['"]?\s*$"#
+        ),
+        // Bare dot-command on its own line (sqlite3 REPL input captured as-is).
+        safe_pattern!(
+            "dot-command-standalone",
+            r"^\s*\.(?:schema|tables|dump|backup|help)\b"
+        ),
         // EXPLAIN is safe
         safe_pattern!("explain", r"(?i)^\s*EXPLAIN\s+"),
     ]
@@ -105,4 +116,52 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              - Run in a transaction: Wrap file contents in BEGIN/COMMIT"
         ),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packs::test_helpers::*;
+
+    #[test]
+    fn test_pack_creation() {
+        let pack = create_pack();
+        assert_eq!(pack.id, "database.sqlite");
+        assert_patterns_compile(&pack);
+    }
+
+    #[test]
+    fn compound_command_dot_command_does_not_bypass_drop() {
+        // Before the fix: `.dump` anywhere in the command matched the safe
+        // pattern and short-circuited the DROP check. Now the destructive
+        // DROP TABLE takes precedence because the dot-command safe pattern
+        // requires the dot-command to be properly anchored.
+        let pack = create_pack();
+        let m = pack
+            .check("sqlite3 mydb \"DROP TABLE foo; .dump\"")
+            .expect("DROP TABLE in a compound with .dump must still block");
+        assert_eq!(m.name, Some("drop-table"));
+
+        let m = pack
+            .check("sqlite3 mydb \"DELETE FROM users; .schema\"")
+            .expect("DELETE FROM in a compound with .schema must still block");
+        assert_eq!(m.name, Some("delete-without-where"));
+    }
+
+    #[test]
+    fn standalone_dot_commands_remain_safe() {
+        let pack = create_pack();
+        assert!(
+            pack.matches_safe(".schema users"),
+            "bare .schema is still safe"
+        );
+        assert!(
+            pack.matches_safe("sqlite3 mydb '.dump'"),
+            "sqlite3 '.dump' is still safe"
+        );
+        assert!(
+            pack.matches_safe("sqlite3 mydb \".schema users\""),
+            "sqlite3 \".schema users\" is still safe"
+        );
+    }
 }

@@ -26,28 +26,63 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each read-only subcommand stops a release name that
+    // contains the subcommand keyword as a substring from making a
+    // destructive command short-circuit as safe. Without this anchor,
+    // `helm uninstall get-operator` would match the `helm-get` safe rule
+    // via `get` in `get-operator` and bypass the uninstall check.
     vec![
         // list/status/history are safe (read-only)
-        safe_pattern!("helm-list", r"helm\s+list"),
-        safe_pattern!("helm-status", r"helm\s+status"),
-        safe_pattern!("helm-history", r"helm\s+history"),
+        safe_pattern!(
+            "helm-list",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+list(?=\s|$)"
+        ),
+        safe_pattern!(
+            "helm-status",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+status(?=\s|$)"
+        ),
+        safe_pattern!(
+            "helm-history",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+history(?=\s|$)"
+        ),
         // show/inspect are safe (read-only)
-        safe_pattern!("helm-show", r"helm\s+show"),
-        safe_pattern!("helm-inspect", r"helm\s+inspect"),
+        safe_pattern!(
+            "helm-show",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+show(?=\s|$)"
+        ),
+        safe_pattern!(
+            "helm-inspect",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+inspect(?=\s|$)"
+        ),
         // get is safe (read-only)
-        safe_pattern!("helm-get", r"helm\s+get"),
+        safe_pattern!("helm-get", r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+get(?=\s|$)"),
         // search is safe
-        safe_pattern!("helm-search", r"helm\s+search"),
+        safe_pattern!(
+            "helm-search",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+search(?=\s|$)"
+        ),
         // repo operations are generally safe
-        safe_pattern!("helm-repo", r"helm\s+repo"),
+        safe_pattern!(
+            "helm-repo",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+repo(?=\s|$)"
+        ),
         // dry-run flags
-        safe_pattern!("helm-dry-run", r"helm\s+.*--dry-run"),
+        safe_pattern!("helm-dry-run", r"helm\b.*--dry-run"),
         // template only generates manifests
-        safe_pattern!("helm-template", r"helm\s+template"),
+        safe_pattern!(
+            "helm-template",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+template(?=\s|$)"
+        ),
         // lint is safe (validation)
-        safe_pattern!("helm-lint", r"helm\s+lint"),
+        safe_pattern!(
+            "helm-lint",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+lint(?=\s|$)"
+        ),
         // diff plugin is safe
-        safe_pattern!("helm-diff", r"helm\s+diff"),
+        safe_pattern!(
+            "helm-diff",
+            r"helm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+diff(?=\s|$)"
+        ),
     ]
 }
 
@@ -56,7 +91,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // uninstall / delete
         destructive_pattern!(
             "uninstall",
-            r"helm\s+(?:uninstall|delete)\b(?!.*--dry-run)",
+            r"helm\b.*?\b(?:uninstall|delete)\b(?!.*--dry-run)",
             "helm uninstall removes the release and all its resources. Use --dry-run first.",
             Critical,
             "helm uninstall deletes the release and ALL Kubernetes resources created by it:\n\n\
@@ -73,7 +108,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // rollback without dry-run
         destructive_pattern!(
             "rollback",
-            r"helm\s+rollback\b(?!.*--dry-run)",
+            r"helm\b.*?\brollback\b(?!.*--dry-run)",
             "helm rollback reverts to a previous release. Use --dry-run to preview changes.",
             High,
             "helm rollback reverts the release to a previous revision. This can cause unexpected \
@@ -90,7 +125,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // upgrade --force
         destructive_pattern!(
             "upgrade-force",
-            r"helm\s+upgrade\s+.*--force",
+            r"helm\b.*?\bupgrade\s+.*--force",
             "helm upgrade --force deletes and recreates resources, causing downtime.",
             High,
             "The --force flag causes Helm to delete and recreate resources instead of updating \
@@ -107,7 +142,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // upgrade --reset-values
         destructive_pattern!(
             "upgrade-reset-values",
-            r"helm\s+upgrade\s+.*--reset-values",
+            r"helm\b.*?\bupgrade\s+.*--reset-values",
             "helm upgrade --reset-values discards all previously set values.",
             High,
             "The --reset-values flag discards all values from previous releases, using only \
@@ -122,4 +157,51 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              - helm upgrade -f values.yaml: Explicitly set all needed values"
         ),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packs::test_helpers::*;
+
+    #[test]
+    fn helm_patterns_match_with_global_flags() {
+        // Helm global flags (`--kube-context`, `--kubeconfig`,
+        // `--namespace`/`-n`, `--debug`, `--registry-config`, …)
+        // between `helm` and the subcommand broke every `helm\s+<sub>`
+        // pattern until the `helm\b.*?\b<sub>` sweep.
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "helm --kube-context prod uninstall critical-release",
+            "uninstall",
+        );
+        assert_blocks(
+            &pack,
+            "helm --kubeconfig /tmp/prod.yaml delete prod-svc",
+            "uninstall",
+        );
+        assert_blocks(
+            &pack,
+            "helm -n prod rollback critical-release 2",
+            "rollback",
+        );
+        assert_blocks(
+            &pack,
+            "helm --kube-context prod upgrade prod-svc ./chart --force",
+            "force",
+        );
+    }
+
+    #[test]
+    fn helm_safe_patterns_do_not_bypass_via_flag_value() {
+        // Flag-value bypass class: `--get-values`, `--list-all` etc.
+        // must not match safe patterns.  `\s+<sub>\b` form enforces
+        // that the subcommand is preceded by whitespace (not `-`).
+        let pack = create_pack();
+        assert_allows(&pack, "helm list");
+        assert_allows(&pack, "helm --kube-context prod list");
+        assert_allows(&pack, "helm get values prod-release");
+        assert_allows(&pack, "helm status prod-release");
+    }
 }

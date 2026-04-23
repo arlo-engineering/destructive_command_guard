@@ -26,26 +26,80 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // flipt CLI - list/get operations
-        safe_pattern!("flipt-flag-list", r"flipt\s+flag\s+list\b"),
-        safe_pattern!("flipt-flag-get", r"flipt\s+flag\s+get\b"),
-        safe_pattern!("flipt-flag-create", r"flipt\s+flag\s+create\b"),
-        safe_pattern!("flipt-flag-update", r"flipt\s+flag\s+update\b"),
-        safe_pattern!("flipt-segment-list", r"flipt\s+segment\s+list\b"),
-        safe_pattern!("flipt-segment-get", r"flipt\s+segment\s+get\b"),
-        safe_pattern!("flipt-segment-create", r"flipt\s+segment\s+create\b"),
-        safe_pattern!("flipt-namespace-list", r"flipt\s+namespace\s+list\b"),
-        safe_pattern!("flipt-namespace-get", r"flipt\s+namespace\s+get\b"),
-        safe_pattern!("flipt-namespace-create", r"flipt\s+namespace\s+create\b"),
-        safe_pattern!("flipt-rule-list", r"flipt\s+rule\s+list\b"),
-        safe_pattern!("flipt-rule-get", r"flipt\s+rule\s+get\b"),
-        safe_pattern!("flipt-rule-create", r"flipt\s+rule\s+create\b"),
-        safe_pattern!("flipt-evaluate", r"flipt\s+evaluate\b"),
+        safe_pattern!(
+            "flipt-flag-list",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+flag\s+list(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-flag-get",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+flag\s+get(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-flag-create",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+flag\s+create(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-flag-update",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+flag\s+update(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-segment-list",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+segment\s+list(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-segment-get",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+segment\s+get(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-segment-create",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+segment\s+create(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-namespace-list",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+namespace\s+list(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-namespace-get",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+namespace\s+get(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-namespace-create",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+namespace\s+create(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-rule-list",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+rule\s+list(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-rule-get",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+rule\s+get(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-rule-create",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+rule\s+create(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-evaluate",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+evaluate(?=\s|$)"
+        ),
         // Help and version commands
-        safe_pattern!("flipt-help", r"flipt\s+(?:--help|-h|help)\b"),
-        safe_pattern!("flipt-version", r"flipt\s+(?:--version|version)\b"),
+        safe_pattern!(
+            "flipt-help",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:--help|-h|help)(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-version",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:--version|version)(?=\s|$)"
+        ),
         // Server commands (safe)
-        safe_pattern!("flipt-server", r"flipt\s+(?:server|serve)\b"),
-        safe_pattern!("flipt-config", r"flipt\s+config\b"),
+        safe_pattern!(
+            "flipt-server",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:server|serve)(?=\s|$)"
+        ),
+        safe_pattern!(
+            "flipt-config",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+config(?=\s|$)"
+        ),
     ]
 }
 
@@ -54,7 +108,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // flipt CLI - delete operations
         destructive_pattern!(
             "flipt-flag-delete",
-            r"flipt\s+flag\s+delete\b",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+flag\s+delete\b",
             "flipt flag delete permanently removes a feature flag. This cannot be undone.",
             Critical,
             "Deleting a Flipt feature flag immediately removes it from evaluation. All \
@@ -67,7 +121,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "flipt-segment-delete",
-            r"flipt\s+segment\s+delete\b",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+segment\s+delete\b",
             "flipt segment delete removes a segment and its constraints.",
             High,
             "Deleting a segment removes user grouping rules. Any flags using this segment \
@@ -80,7 +134,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "flipt-namespace-delete",
-            r"flipt\s+namespace\s+delete\b",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+namespace\s+delete\b",
             "flipt namespace delete removes a namespace and all its flags, segments, and rules.",
             Critical,
             "Deleting a namespace removes ALL flags, segments, rules, and constraints \
@@ -93,7 +147,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "flipt-rule-delete",
-            r"flipt\s+rule\s+delete\b",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+rule\s+delete\b",
             "flipt rule delete removes a targeting rule from a flag.",
             High,
             "Deleting a rule changes how the flag evaluates for targeted users. Users \
@@ -106,7 +160,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "flipt-constraint-delete",
-            r"flipt\s+constraint\s+delete\b",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+constraint\s+delete\b",
             "flipt constraint delete removes a constraint from a segment.",
             Medium,
             "Removing a constraint changes segment membership. Users previously excluded \
@@ -119,7 +173,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "flipt-variant-delete",
-            r"flipt\s+variant\s+delete\b",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+variant\s+delete\b",
             "flipt variant delete removes a variant from a flag.",
             High,
             "Deleting a variant removes a possible flag value. Rules distributing traffic \
@@ -132,7 +186,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "flipt-distribution-delete",
-            r"flipt\s+distribution\s+delete\b",
+            r"flipt(?:\s+--?\S+(?:\s+\S+)?)*\s+distribution\s+delete\b",
             "flipt distribution delete removes a distribution from a rule.",
             Medium,
             "Removing a distribution changes traffic allocation within a rule. The \

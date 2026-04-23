@@ -27,18 +27,24 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // kustomize build alone is safe (just renders)
-        safe_pattern!("kustomize-build", r"kustomize\s+build(?!\s*\|)"),
+        safe_pattern!(
+            "kustomize-build",
+            r"kustomize\b(?:\s+--?\S+(?:\s+\S+)?)*\s+build\b(?!\s*\|)"
+        ),
         // kubectl kustomize is safe (just renders)
-        safe_pattern!("kubectl-kustomize", r"kubectl\s+kustomize(?!\s*\|)"),
+        safe_pattern!(
+            "kubectl-kustomize",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+kustomize\b(?!\s*\|)"
+        ),
         // kustomize with diff is safe
         safe_pattern!(
             "kustomize-diff",
-            r"kustomize\s+build\s+.*\|\s*kubectl\s+diff"
+            r"kustomize\b.*?\bbuild\s+.*\|\s*kubectl\b.*?\s+diff\b"
         ),
         // kustomize with dry-run
         safe_pattern!(
             "kustomize-dry-run",
-            r"kustomize\s+build\s+.*\|\s*kubectl\s+.*--dry-run"
+            r"kustomize\b.*?\bbuild\s+.*\|\s*kubectl\b.*--dry-run"
         ),
     ]
 }
@@ -48,7 +54,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // kustomize build | kubectl delete
         destructive_pattern!(
             "kustomize-delete",
-            r"kustomize\s+build\s+.*\|\s*kubectl\s+delete",
+            r"kustomize\b.*?\bbuild\s+.*\|\s*kubectl\b.*?\bdelete",
             "kustomize build | kubectl delete removes all resources in the kustomization.",
             Critical,
             "Piping kustomize build to kubectl delete removes ALL resources defined in the \
@@ -65,7 +71,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // kubectl kustomize | kubectl delete
         destructive_pattern!(
             "kubectl-kustomize-delete",
-            r"kubectl\s+kustomize\s+.*\|\s*kubectl\s+delete",
+            r"kubectl\b.*?\bkustomize\s+.*\|\s*kubectl\b.*?\bdelete",
             "kubectl kustomize | kubectl delete removes all resources in the kustomization.",
             Critical,
             "Piping kubectl kustomize to kubectl delete removes ALL resources defined in the \
@@ -82,7 +88,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // kubectl delete -k (kustomize flag)
         destructive_pattern!(
             "kubectl-delete-k",
-            r"kubectl\s+delete\s+-k\b(?!.*--dry-run)",
+            r"kubectl\b.*?\bdelete\s+-k\b(?!.*--dry-run)",
             "kubectl delete -k removes all resources defined in the kustomization. Use --dry-run first.",
             Critical,
             "kubectl delete -k removes all resources defined in a kustomization directory. \

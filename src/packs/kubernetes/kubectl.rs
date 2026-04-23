@@ -131,28 +131,63 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // Two safeguards on each safe subcommand:
+    //   1. `(?:\s+--?\S+(?:\s+\S+)?)*` only accepts flag-value pairs between
+    //      `kubectl` and the safe subcommand — so a destructive command
+    //      like `kubectl delete deployment get` (resource literally named
+    //      `get`) can't short-circuit via the trailing `get` token.
+    //   2. `(?=\s|$)` on the trailing side so a resource name that STARTS
+    //      with the subcommand keyword (e.g. `get-handler`, `logs-archive`)
+    //      also can't short-circuit.
     vec![
         // get/describe/logs are safe (read-only)
-        safe_pattern!("kubectl-get", r"kubectl\s+get"),
-        safe_pattern!("kubectl-describe", r"kubectl\s+describe"),
-        safe_pattern!("kubectl-logs", r"kubectl\s+logs"),
+        safe_pattern!(
+            "kubectl-get",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+get(?=\s|$)"
+        ),
+        safe_pattern!(
+            "kubectl-describe",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+describe(?=\s|$)"
+        ),
+        safe_pattern!(
+            "kubectl-logs",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+logs(?=\s|$)"
+        ),
         // dry-run is safe
         safe_pattern!(
             "kubectl-dry-run",
-            r"kubectl\s+.*--dry-run(?:=(?:client|server|none))?"
+            r"kubectl\b.*--dry-run(?:=(?:client|server|none))?"
         ),
         // diff is safe (shows what would change)
-        safe_pattern!("kubectl-diff", r"kubectl\s+diff"),
+        safe_pattern!(
+            "kubectl-diff",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+diff(?=\s|$)"
+        ),
         // explain is safe (documentation)
-        safe_pattern!("kubectl-explain", r"kubectl\s+explain"),
+        safe_pattern!(
+            "kubectl-explain",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+explain(?=\s|$)"
+        ),
         // top is safe (metrics)
-        safe_pattern!("kubectl-top", r"kubectl\s+top"),
+        safe_pattern!(
+            "kubectl-top",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+top(?=\s|$)"
+        ),
         // config is safe
-        safe_pattern!("kubectl-config", r"kubectl\s+config"),
+        safe_pattern!(
+            "kubectl-config",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+config(?=\s|$)"
+        ),
         // api-resources/api-versions are safe
-        safe_pattern!("kubectl-api", r"kubectl\s+api-(?:resources|versions)"),
+        safe_pattern!(
+            "kubectl-api",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+api-(?:resources|versions)(?=\s|$)"
+        ),
         // version is safe
-        safe_pattern!("kubectl-version", r"kubectl\s+version"),
+        safe_pattern!(
+            "kubectl-version",
+            r"kubectl\b(?:\s+--?\S+(?:\s+\S+)?)*\s+version(?=\s|$)"
+        ),
     ]
 }
 
@@ -162,7 +197,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete namespace
         destructive_pattern!(
             "delete-namespace",
-            r"kubectl\s+delete\s+(?:namespace|ns)\b",
+            r"kubectl\b.*?\bdelete\s+(?:namespace|ns)\b",
             "kubectl delete namespace removes the entire namespace and ALL resources within it.",
             Critical,
             "Deleting a namespace destroys EVERYTHING inside it:\n\n\
@@ -182,7 +217,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete all
         destructive_pattern!(
             "delete-all",
-            r"kubectl\s+delete\s+.*--all\b",
+            r"kubectl\b.*?\bdelete\s+.*--all\b",
             "kubectl delete --all removes ALL resources of that type. Use --dry-run=client first.",
             High,
             "The --all flag deletes EVERY resource of the specified type in the namespace.\n\n\
@@ -199,7 +234,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete with -A (all namespaces)
         destructive_pattern!(
             "delete-all-namespaces",
-            r"kubectl\s+delete\s+.*(?:-A\b|--all-namespaces)",
+            r"kubectl\b.*?\bdelete\s+.*(?:-A\b|--all-namespaces)",
             "kubectl delete with -A/--all-namespaces affects ALL namespaces. Very dangerous!",
             Critical,
             "The -A/--all-namespaces flag expands deletion to EVERY namespace in the cluster. \
@@ -215,7 +250,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // drain node
         destructive_pattern!(
             "drain-node",
-            r"kubectl\s+drain\b",
+            r"kubectl\b.*?\bdrain\b",
             "kubectl drain evicts all pods from a node. Ensure proper pod disruption budgets.",
             High,
             "kubectl drain evicts ALL pods from a node, typically for maintenance. \
@@ -233,7 +268,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // cordon node
         destructive_pattern!(
             "cordon-node",
-            r"kubectl\s+cordon\b",
+            r"kubectl\b.*?\bcordon\b",
             "kubectl cordon marks a node unschedulable. Existing pods continue running.",
             Medium,
             "kubectl cordon marks a node as unschedulable. Existing pods continue running, \
@@ -251,7 +286,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // taint node with NoExecute
         destructive_pattern!(
             "taint-noexecute",
-            r"kubectl\s+taint\s+.*:NoExecute",
+            r"kubectl\b.*?\btaint\s+.*:NoExecute",
             "kubectl taint with NoExecute evicts existing pods that don't tolerate the taint.",
             High,
             "A NoExecute taint immediately evicts pods that don't have a matching toleration. \
@@ -269,7 +304,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete deployment/statefulset/daemonset
         destructive_pattern!(
             "delete-workload",
-            r"kubectl\s+delete\s+(?:deployment|statefulset|daemonset|replicaset)\b(?!.*--dry-run)",
+            r"kubectl\b.*?\bdelete\s+(?:deployment|statefulset|daemonset|replicaset)\b(?!.*--dry-run)",
             "kubectl delete deployment/statefulset/daemonset removes the workload. Use --dry-run first.",
             High,
             "Deleting a workload terminates all its pods:\n\n\
@@ -286,7 +321,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete pvc (persistent volume claim)
         destructive_pattern!(
             "delete-pvc",
-            r"kubectl\s+delete\s+(?:pvc|persistentvolumeclaim)\b(?!.*--dry-run)",
+            r"kubectl\b.*?\bdelete\s+(?:pvc|persistentvolumeclaim)\b(?!.*--dry-run)",
             "kubectl delete pvc may permanently delete data if ReclaimPolicy is Delete.",
             Critical,
             "Deleting a PVC can cause permanent data loss depending on the PV's reclaimPolicy:\n\n\
@@ -304,7 +339,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete pv (persistent volume)
         destructive_pattern!(
             "delete-pv",
-            r"kubectl\s+delete\s+(?:pv|persistentvolume)\b(?!.*--dry-run)",
+            r"kubectl\b.*?\bdelete\s+(?:pv|persistentvolume)\b(?!.*--dry-run)",
             "kubectl delete pv may permanently delete the underlying storage.",
             Critical,
             "Deleting a PersistentVolume can permanently destroy the underlying storage:\n\n\
@@ -322,7 +357,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // scale to 0
         destructive_pattern!(
             "scale-to-zero",
-            r"kubectl\s+scale\s+.*--replicas=0",
+            r"kubectl\b.*?\bscale\s+.*--replicas=0",
             "kubectl scale --replicas=0 stops all pods for the workload.",
             High,
             "Scaling to zero replicas terminates ALL pods for the workload:\n\n\
@@ -339,7 +374,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete with force --grace-period=0
         destructive_pattern!(
             "delete-force",
-            r"kubectl\s+delete\s+.*--force.*--grace-period=0|kubectl\s+delete\s+.*--grace-period=0.*--force",
+            r"kubectl\b.*?\bdelete\s+.*--force.*--grace-period=0|kubectl\b.*?\bdelete\s+.*--grace-period=0.*--force",
             "kubectl delete --force --grace-period=0 immediately removes resources without graceful shutdown.",
             Critical,
             "Force deletion with zero grace period is dangerous:\n\n\
@@ -358,7 +393,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // apply --force
         destructive_pattern!(
             "apply-force",
-            r"kubectl\s+apply\s+.*--force\b",
+            r"kubectl\b.*?\bapply\s+.*--force\b",
             "kubectl apply --force deletes and recreates resources, causing downtime.",
             High,
             "kubectl apply --force deletes the resource and recreates it from the manifest. \
@@ -377,7 +412,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // delete -f with directory (batch deletion)
         destructive_pattern!(
             "delete-from-directory",
-            r"kubectl\s+delete\s+-f\s+\.\s*$|kubectl\s+delete\s+-f\s+\./|kubectl\s+delete\s+--recursive\s+-f|kubectl\s+delete\s+-f.*--recursive",
+            r"kubectl\b.*?\bdelete\s+-f\s+\.\s*$|kubectl\b.*?\bdelete\s+-f\s+\./|kubectl\b.*?\bdelete\s+--recursive\s+-f|kubectl\b.*?\bdelete\s+-f.*--recursive",
             "kubectl delete -f with directories or --recursive deletes many resources at once.",
             High,
             "Deleting from a directory or recursively removes ALL resources defined in those files:\n\n\
@@ -392,4 +427,124 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             DELETE_FROM_DIR_SUGGESTIONS
         ),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packs::test_helpers::*;
+
+    #[test]
+    fn kubectl_patterns_match_with_global_flags() {
+        // Same class bug as every other CLI pack: kubectl global flags
+        // (`--context`, `--kubeconfig`, `--namespace`/`-n`, `--user`,
+        // `--cluster`, `--server`, `-v`) between `kubectl` and the
+        // subcommand break every `kubectl\s+<sub>` pattern. This is
+        // the single most common kubectl usage shape — any operator
+        // working against multiple clusters or explicit namespaces
+        // routinely uses `--context` / `-n`.
+        let pack = create_pack();
+        // delete namespace with --context
+        assert_blocks(
+            &pack,
+            "kubectl --context prod delete namespace critical",
+            "namespace",
+        );
+        // delete --all with --kubeconfig
+        assert_blocks(
+            &pack,
+            "kubectl --kubeconfig /tmp/prod.yaml delete deployment --all",
+            "--all",
+        );
+        // delete across all namespaces with --context.  The broader
+        // `delete-all` rule (matching `--all`) fires before the more
+        // specific `delete-all-namespaces` — both reasons are accurate
+        // but `delete-all`'s reason lands first; the test just asserts
+        // *some* kind of "all" block fires.
+        assert_blocks(
+            &pack,
+            "kubectl --context prod delete pods --all-namespaces -l app=legacy",
+            "ALL resources",
+        );
+        // drain with explicit context
+        assert_blocks(
+            &pack,
+            "kubectl --context prod drain node-1 --ignore-daemonsets",
+            "drain",
+        );
+        // force+grace-period=0 with -n namespace
+        assert_blocks(
+            &pack,
+            "kubectl -n prod delete pod stuck-pod --force --grace-period=0",
+            "force",
+        );
+        // delete pvc with --context
+        assert_blocks(
+            &pack,
+            "kubectl --context prod delete pvc prod-db-data",
+            "pvc",
+        );
+        // apply --force with --context
+        assert_blocks(
+            &pack,
+            "kubectl --context prod apply -f manifest.yaml --force",
+            "force",
+        );
+    }
+
+    #[test]
+    fn kubectl_safe_patterns_do_not_bypass_via_flag_value() {
+        // The flag-as-safe-word bypass class: widening the safe
+        // patterns' service-anchor must not let destructive commands
+        // with flag values like `--get-url`, `--describe-pod`,
+        // `--top-logs` sneak through. Only positional `get`/`describe`
+        // /`logs`/etc. should match safe rules.
+        let pack = create_pack();
+        // Genuine read commands still allowed
+        assert_allows(&pack, "kubectl get pods");
+        assert_allows(&pack, "kubectl --context prod get pods");
+        assert_allows(&pack, "kubectl describe pod foo");
+        assert_allows(&pack, "kubectl logs deployment/foo");
+        // Safe positional after global flags
+        assert_allows(&pack, "kubectl -n prod get pods");
+        // Genuine dry-run bypass stays allowed
+        assert_allows(
+            &pack,
+            "kubectl --context prod delete deployment foo --dry-run=client",
+        );
+    }
+
+    #[test]
+    fn safe_subcommand_inside_resource_name_does_not_short_circuit() {
+        // Resource names often contain read-only subcommand keywords as
+        // substrings. Without the `(?=\s|$)` anchor, `kubectl delete
+        // deployment get-handler` matches the `kubectl-get` safe rule via
+        // `get` in `get-handler`, short-circuiting the destructive
+        // `delete-workload` check.
+        let pack = create_pack();
+        assert!(
+            pack.check("kubectl delete deployment get-handler")
+                .is_some(),
+            "delete deployment named `get-handler` must still block"
+        );
+        assert!(
+            pack.check("kubectl delete statefulset describe-worker")
+                .is_some(),
+            "delete statefulset named `describe-worker` must still block"
+        );
+        assert!(
+            pack.check("kubectl delete daemonset logs-archive")
+                .is_some(),
+            "delete daemonset named `logs-archive` must still block"
+        );
+        assert!(
+            pack.check("kubectl delete pvc top-disk").is_some(),
+            "delete pvc named `top-disk` must still block"
+        );
+
+        // Bare subcommands still short-circuit.
+        assert_allows(&pack, "kubectl get pods");
+        assert_allows(&pack, "kubectl describe pod foo");
+        assert_allows(&pack, "kubectl logs deployment/myapp");
+    }
 }

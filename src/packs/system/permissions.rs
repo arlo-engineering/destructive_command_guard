@@ -84,9 +84,11 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             CHMOD_777_SUGGESTIONS
         ),
         // chmod -R on root or system directories
+        // `['"]?` before the leading `/` so quoted variants like
+        // `chmod -R "/etc"` are caught — the shell unquotes to `/etc`.
         destructive_pattern!(
             "chmod-recursive-root",
-            r"chmod\s+(?:.*(?:-[rR]|--recursive)).*\s+/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b",
+            r#"chmod\s+(?:.*(?:-[rR]|--recursive)).*\s+['"]?/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b"#,
             "chmod -R on system directories can break system permissions.",
             Critical,
             "Recursively changing permissions on system directories can render the system \
@@ -99,7 +101,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // chown -R on root or system directories
         destructive_pattern!(
             "chown-recursive-root",
-            r"chown\s+(?:.*(?:-[rR]|--recursive)).*\s+/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b",
+            r#"chown\s+(?:.*(?:-[rR]|--recursive)).*\s+['"]?/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b"#,
             "chown -R on system directories can break system ownership.",
             High,
             "Recursive ownership changes on system directories can disrupt services, \
@@ -152,7 +154,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // setfacl with dangerous patterns
         destructive_pattern!(
             "setfacl-all",
-            r"setfacl\s+.*-[rR].*\s+/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b",
+            r#"setfacl\s+.*-[rR].*\s+['"]?/(?:$|bin|boot|dev|etc|lib|lib64|opt|proc|root|run|sbin|srv|sys|usr|var)\b"#,
             "setfacl -R on system directories can modify access control across the filesystem.",
             Critical,
             "Recursively modifying ACLs on system directories changes fine-grained access \
@@ -165,4 +167,39 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              setfacl -m u:<user>:rwx <specific-file>"
         ),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::packs::test_helpers::*;
+
+    #[test]
+    fn test_pack_creation() {
+        let pack = create_pack();
+        assert_eq!(pack.id, "system.permissions");
+        assert_patterns_compile(&pack);
+        assert_all_patterns_have_reasons(&pack);
+        assert_unique_pattern_names(&pack);
+    }
+
+    #[test]
+    fn quote_bypass_does_not_evade_system_dir_block() {
+        // Shell unquotes "/etc" to /etc before the command sees it, so the
+        // destructive form must match the quoted spelling too. Use mode 0755
+        // so `chmod-777` (which would match first for 0777) doesn't shadow
+        // the `chmod-recursive-root` attribution we want to verify.
+        let pack = create_pack();
+        assert_blocks_with_pattern(&pack, "chmod -R 0755 \"/etc\"", "chmod-recursive-root");
+        assert_blocks_with_pattern(&pack, "chmod -R 0755 '/usr/local'", "chmod-recursive-root");
+        assert_blocks_with_pattern(&pack, "chown -R user:user \"/var\"", "chown-recursive-root");
+        assert_blocks_with_pattern(
+            &pack,
+            "chown --recursive root '/etc'",
+            "chown-recursive-root",
+        );
+        assert_blocks_with_pattern(&pack, "setfacl -R -m u:app:rwx \"/etc\"", "setfacl-all");
+        // Unquoted still works.
+        assert_blocks_with_pattern(&pack, "chmod -R 0755 /etc", "chmod-recursive-root");
+    }
 }

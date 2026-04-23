@@ -83,6 +83,7 @@ pub mod output;
 pub mod packs;
 pub mod pending_exceptions;
 pub mod perf;
+pub mod rebase_recovery;
 pub mod sarif;
 pub mod scan;
 pub mod simulate;

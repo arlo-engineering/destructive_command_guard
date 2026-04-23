@@ -88,7 +88,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         ),
         destructive_pattern!(
             "cloudflare-terraform-destroy-record",
-            r"terraform\s+destroy\s+.*-target=(?:resource\.)?cloudflare_record\.",
+            r"terraform\b.*?\s+destroy\s+.*-target=(?:resource\.)?cloudflare_record\.",
             "terraform destroy -target=cloudflare_record deletes specific DNS records.",
             High,
             "Terraform destroy removes DNS records from Cloudflare. While Terraform state \

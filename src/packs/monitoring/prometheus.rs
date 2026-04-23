@@ -65,7 +65,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
     vec![
         destructive_pattern!(
             "prometheus-rules-file-delete",
-            r"\brm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:(?:-f|--force)\s+)?(?:/etc/prometheus/(?:rules\.d|rules)/\S+|/etc/prometheus/(?:prometheus|rules)\.(?:ya?ml))(?:\s|$)",
+            r#"\brm\b(?:\s+--?\S+(?:\s+\S+)?)*\s+(?:(?:-f|--force)\s+)?['"]?(?:/etc/prometheus/(?:rules\.d|rules)/\S+|/etc/prometheus/(?:prometheus|rules)\.(?:ya?ml))['"]?(?:\s|$)"#,
             "Deleting Prometheus rule/config files can break alerting and monitoring coverage.",
             Critical,
             "Deleting Prometheus configuration or rule files stops alerting for the defined \
@@ -220,6 +220,21 @@ mod tests {
             &pack,
             "curl -X DELETE http://grafana.local/api/alert-notifications/1",
             "grafana-api-delete-alert-notification",
+        );
+    }
+
+    #[test]
+    fn quoted_prometheus_path_does_not_bypass() {
+        let pack = create_pack();
+        assert_blocks_with_pattern(
+            &pack,
+            "rm \"/etc/prometheus/rules.d/alerts.yml\"",
+            "prometheus-rules-file-delete",
+        );
+        assert_blocks_with_pattern(
+            &pack,
+            "rm -f '/etc/prometheus/prometheus.yml'",
+            "prometheus-rules-file-delete",
         );
     }
 }

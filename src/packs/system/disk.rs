@@ -54,9 +54,13 @@ pub fn create_pack() -> Pack {
 fn create_safe_patterns() -> Vec<SafePattern> {
     vec![
         // dd to regular files is generally safe
-        safe_pattern!("dd-file-out", r"dd\s+.*of=[^/\s]+\."),
-        // dd to /dev/null|zero|full is safe (discard output)
-        safe_pattern!("dd-discard", r"dd\s+.*of=/dev/(?:null|zero|full)(?:\s|$)"),
+        safe_pattern!("dd-file-out", r#"dd\s+.*of=['"]?[^/\s'"]+\."#),
+        // dd to /dev/null|zero|full is safe (discard output). Accept optional
+        // quotes so `dd of="/dev/null"` still short-circuits as safe.
+        safe_pattern!(
+            "dd-discard",
+            r#"dd\s+.*of=['"]?/dev/(?:null|zero|full)['"]?(?:\s|$)"#
+        ),
         // lsblk is safe (read-only)
         safe_pattern!("lsblk", r"\blsblk\b"),
         // fdisk -l (list) is safe
@@ -82,32 +86,71 @@ fn create_safe_patterns() -> Vec<SafePattern> {
         safe_pattern!("mdadm-scan", r"mdadm\s+--scan\b"),
         // --- btrfs safe patterns ---
         // btrfs subvolume list (read-only)
-        safe_pattern!("btrfs-subvolume-list", r"btrfs\s+subvolume\s+list\b"),
+        safe_pattern!(
+            "btrfs-subvolume-list",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+subvolume\s+list(?=\s|$)"
+        ),
         // btrfs subvolume show (read-only)
-        safe_pattern!("btrfs-subvolume-show", r"btrfs\s+subvolume\s+show\b"),
+        safe_pattern!(
+            "btrfs-subvolume-show",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+subvolume\s+show(?=\s|$)"
+        ),
         // btrfs filesystem show (read-only)
-        safe_pattern!("btrfs-filesystem-show", r"btrfs\s+filesystem\s+show\b"),
+        safe_pattern!(
+            "btrfs-filesystem-show",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+filesystem\s+show(?=\s|$)"
+        ),
         // btrfs filesystem df (read-only)
-        safe_pattern!("btrfs-filesystem-df", r"btrfs\s+filesystem\s+df\b"),
+        safe_pattern!(
+            "btrfs-filesystem-df",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+filesystem\s+df(?=\s|$)"
+        ),
         // btrfs filesystem usage (read-only)
-        safe_pattern!("btrfs-filesystem-usage", r"btrfs\s+filesystem\s+usage\b"),
+        safe_pattern!(
+            "btrfs-filesystem-usage",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+filesystem\s+usage(?=\s|$)"
+        ),
         // btrfs device stats (read-only)
-        safe_pattern!("btrfs-device-stats", r"btrfs\s+device\s+stats\b"),
+        safe_pattern!(
+            "btrfs-device-stats",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+device\s+stats(?=\s|$)"
+        ),
         // btrfs property get/list (read-only)
-        safe_pattern!("btrfs-property-get", r"btrfs\s+property\s+(?:get|list)\b"),
+        safe_pattern!(
+            "btrfs-property-get",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+property\s+(?:get|list)(?=\s|$)"
+        ),
         // btrfs scrub status (read-only)
-        safe_pattern!("btrfs-scrub-status", r"btrfs\s+scrub\s+status\b"),
+        safe_pattern!(
+            "btrfs-scrub-status",
+            r"btrfs\b(?:\s+--?\S+(?:\s+\S+)?)*\s+scrub\s+status(?=\s|$)"
+        ),
         // --- dmsetup safe patterns ---
         // dmsetup ls (list devices)
-        safe_pattern!("dmsetup-ls", r"dmsetup\s+ls\b"),
+        safe_pattern!(
+            "dmsetup-ls",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+ls(?=\s|$)"
+        ),
         // dmsetup status (show status)
-        safe_pattern!("dmsetup-status", r"dmsetup\s+status\b"),
+        safe_pattern!(
+            "dmsetup-status",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+status(?=\s|$)"
+        ),
         // dmsetup info (show info)
-        safe_pattern!("dmsetup-info", r"dmsetup\s+info\b"),
+        safe_pattern!(
+            "dmsetup-info",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+info(?=\s|$)"
+        ),
         // dmsetup table (show mapping table)
-        safe_pattern!("dmsetup-table", r"dmsetup\s+table\b"),
+        safe_pattern!(
+            "dmsetup-table",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+table(?=\s|$)"
+        ),
         // dmsetup deps (show dependencies)
-        safe_pattern!("dmsetup-deps", r"dmsetup\s+deps\b"),
+        safe_pattern!(
+            "dmsetup-deps",
+            r"dmsetup\b(?:\s+--?\S+(?:\s+\S+)?)*\s+deps(?=\s|$)"
+        ),
         // --- nbd-client safe patterns ---
         // nbd-client -l (list exports)
         safe_pattern!("nbd-client-list", r"nbd-client\s+-l\b"),
@@ -125,28 +168,30 @@ fn create_safe_patterns() -> Vec<SafePattern> {
 
 fn create_destructive_patterns() -> Vec<DestructivePattern> {
     vec![
-        // dd to block devices
+        // dd to block devices. Accept optional quotes around the device path
+        // (`dd of="/dev/sda"` unquotes to `of=/dev/sda` before exec).
         destructive_pattern!(
             "dd-device",
-            r"dd\s+.*of=/dev/",
+            r#"dd\s+.*of=['"]?/dev/"#,
             "dd to a block device will OVERWRITE all data on that device. Extremely dangerous!"
         ),
         // dd with if=/dev/zero or if=/dev/urandom to devices
         destructive_pattern!(
             "dd-wipe",
-            r"dd\s+.*if=/dev/(?:zero|urandom|random).*of=/dev/",
+            r#"dd\s+.*if=['"]?/dev/(?:zero|urandom|random).*of=['"]?/dev/"#,
             "dd from /dev/zero or /dev/urandom to a device will WIPE all data!"
         ),
-        // fdisk (partition editing)
+        // fdisk (partition editing).
+        // `['"]?` allows quoted variants like `fdisk "/dev/sda"` to match.
         destructive_pattern!(
             "fdisk-edit",
-            r"fdisk\s+/dev/(?!.*-l)",
+            r#"fdisk\s+['"]?/dev/(?!.*-l)"#,
             "fdisk can modify partition tables and cause data loss."
         ),
         // parted (except print)
         destructive_pattern!(
             "parted-modify",
-            r"parted\s+/dev/\S+\s+(?!print)",
+            r#"parted\s+['"]?/dev/\S+\s+(?!print)"#,
             "parted can modify partition tables and cause data loss."
         ),
         // mkfs (format filesystem)
@@ -164,7 +209,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // mount with potentially dangerous options
         destructive_pattern!(
             "mount-bind-root",
-            r"mount\s+.*--bind\s+.*\s+/(?:$|[^a-z])",
+            r#"mount\s+.*--bind\s+.*\s+['"]?/(?:$|[^a-z])"#,
             "mount --bind to root directory can have system-wide effects."
         ),
         // umount -f (force)
@@ -176,7 +221,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // losetup can be dangerous
         destructive_pattern!(
             "losetup-device",
-            r"losetup\s+/dev/loop",
+            r#"losetup\s+['"]?/dev/loop"#,
             "losetup modifies loop device associations. Verify before proceeding."
         ),
         // --- mdadm destructive patterns ---
@@ -220,80 +265,80 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // btrfs subvolume delete
         destructive_pattern!(
             "btrfs-subvolume-delete",
-            r"btrfs\s+subvolume\s+delete\b",
+            r"btrfs\b.*?\s+subvolume\s+delete\b",
             "btrfs subvolume delete PERMANENTLY removes a subvolume and all its data."
         ),
         // btrfs device remove/delete
         destructive_pattern!(
             "btrfs-device-remove",
-            r"btrfs\s+device\s+(?:remove|delete)\b",
+            r"btrfs\b.*?\s+device\s+(?:remove|delete)\b",
             "btrfs device remove redistributes data off a device. Interruption causes data loss."
         ),
         // btrfs device add (can be dangerous with wrong device)
         destructive_pattern!(
             "btrfs-device-add",
-            r"btrfs\s+device\s+add\b",
+            r"btrfs\b.*?\s+device\s+add\b",
             "btrfs device add incorporates a device into the filesystem. Verify the device is correct."
         ),
         // btrfs balance start (can be very disruptive)
         destructive_pattern!(
             "btrfs-balance",
-            r"btrfs\s+balance\s+start\b",
+            r"btrfs\b.*?\s+balance\s+start\b",
             "btrfs balance redistributes data across devices. Can be slow and disruptive."
         ),
         // btrfs check --repair (dangerous, can corrupt filesystem)
         destructive_pattern!(
             "btrfs-check-repair",
-            r"btrfs\s+check\s+(?:.*\s+)?--repair\b",
+            r"btrfs\b.*?\s+check\s+(?:.*\s+)?--repair\b",
             "btrfs check --repair is DANGEROUS and can cause data loss. Backup first!"
         ),
         // btrfs rescue (emergency operations)
         destructive_pattern!(
             "btrfs-rescue",
-            r"btrfs\s+rescue\b",
+            r"btrfs\b.*?\s+rescue\b",
             "btrfs rescue operations modify filesystem metadata. Use only as last resort."
         ),
         // btrfs filesystem resize (can shrink)
         destructive_pattern!(
             "btrfs-filesystem-resize",
-            r"btrfs\s+filesystem\s+resize\b",
+            r"btrfs\b.*?\s+filesystem\s+resize\b",
             "btrfs filesystem resize can shrink a filesystem. Data loss if size is too small."
         ),
         // --- dmsetup destructive patterns ---
         // dmsetup remove (removes a device-mapper device)
         destructive_pattern!(
             "dmsetup-remove",
-            r"dmsetup\s+remove\b",
+            r"dmsetup\b.*?\s+remove\b",
             "dmsetup remove detaches a device-mapper device. May cause data loss if in use."
         ),
         // dmsetup remove_all (removes ALL device-mapper devices)
         destructive_pattern!(
             "dmsetup-remove-all",
-            r"dmsetup\s+remove_all\b",
+            r"dmsetup\b.*?\s+remove_all\b",
             "dmsetup remove_all removes ALL device-mapper devices. Extremely dangerous!"
         ),
         // dmsetup wipe_table (replaces table with error target)
         destructive_pattern!(
             "dmsetup-wipe-table",
-            r"dmsetup\s+wipe_table\b",
+            r"dmsetup\b.*?\s+wipe_table\b",
             "dmsetup wipe_table replaces the device table, causing all I/O to fail."
         ),
         // dmsetup clear (clears the table)
         destructive_pattern!(
             "dmsetup-clear",
-            r"dmsetup\s+clear\b",
+            r"dmsetup\b.*?\s+clear\b",
             "dmsetup clear removes the mapping table from a device."
         ),
         // dmsetup load (loads a new table)
         destructive_pattern!(
             "dmsetup-load",
-            r"dmsetup\s+load\b",
+            r"dmsetup\b.*?\s+load\b",
             "dmsetup load changes device mapping. Verify the new table is correct."
         ),
         // dmsetup create (creates a new device)
         destructive_pattern!(
             "dmsetup-create",
-            r"dmsetup\s+create\b",
+            r"dmsetup\b.*?\s+create\b",
             "dmsetup create sets up a new device-mapper device. Verify parameters carefully."
         ),
         // --- nbd-client destructive patterns ---
@@ -306,7 +351,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // nbd-client connect (can overwrite existing data)
         destructive_pattern!(
             "nbd-client-connect",
-            r"nbd-client\s+\S+\s+\d+\s+/dev/nbd",
+            r#"nbd-client\s+\S+\s+\d+\s+['"]?/dev/nbd"#,
             "nbd-client connecting a device can expose or overwrite data. Verify server and device."
         ),
         // --- LVM destructive patterns ---
@@ -383,5 +428,56 @@ mod tests {
         let pack = create_pack();
         assert!(!pack.might_match("echo hello"));
         assert!(pack.check("echo hello").is_none());
+    }
+
+    #[test]
+    fn dd_quote_bypass_is_closed() {
+        // `dd of="/dev/sda"` unquotes to `dd of=/dev/sda` at exec time.
+        // The destructive pattern must match both spellings. The earlier-listed
+        // `dd-device` rule catches every `dd of=/dev/...` variant (including
+        // the more-specific wipe cases), which is the correct, fail-safe
+        // behavior.
+        let pack = create_pack();
+        let matched = pack
+            .check("dd if=/dev/zero of=\"/dev/sda\" bs=1M")
+            .expect("dd of=\"...\" must still block");
+        assert_eq!(matched.name, Some("dd-device"));
+
+        let matched = pack
+            .check("dd of='/dev/sdb' if=something.img")
+            .expect("dd of='...' must still block");
+        assert_eq!(matched.name, Some("dd-device"));
+
+        // /dev/null stays safe under quotes.
+        assert!(
+            pack.matches_safe("dd if=myfile of=\"/dev/null\""),
+            "safe /dev/null discard must accept quoted path"
+        );
+    }
+
+    #[test]
+    fn btrfs_dmsetup_global_flags_do_not_bypass() {
+        let pack = create_pack();
+        // btrfs accepts --format, --verbose, --quiet before the subcommand.
+        let matched = pack
+            .check("btrfs --format json subvolume delete /mnt/foo")
+            .expect("btrfs --format subvolume delete should still block");
+        assert_eq!(matched.name, Some("btrfs-subvolume-delete"));
+
+        let matched = pack
+            .check("btrfs --verbose check --repair /dev/sda1")
+            .expect("btrfs --verbose check --repair should still block");
+        assert_eq!(matched.name, Some("btrfs-check-repair"));
+
+        // dmsetup accepts -v, --noudevsync, --verifyudev before the subcommand.
+        let matched = pack
+            .check("dmsetup -v remove_all")
+            .expect("dmsetup -v remove_all should still block");
+        assert_eq!(matched.name, Some("dmsetup-remove-all"));
+
+        let matched = pack
+            .check("dmsetup --noudevsync remove my-dev")
+            .expect("dmsetup with noudevsync should still block");
+        assert_eq!(matched.name, Some("dmsetup-remove"));
     }
 }
