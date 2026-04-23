@@ -723,6 +723,36 @@ dcg update --verify
 
 You can always re-run `install.sh` / `install.ps1` directly if preferred.
 
+## Syncing This Fork With Upstream
+
+When syncing this fork with the parent repository, always use a fork-owned sync branch instead of opening a pull request whose head branch lives in the upstream repository.
+
+Recommended workflow:
+
+```bash
+git fetch origin main
+git fetch upstream main
+git switch -c sync-upstream-YYYYMMDD origin/main
+git merge upstream/main
+# resolve conflicts if needed
+git push -u origin sync-upstream-YYYYMMDD
+```
+
+Then open a pull request from `arlo-engineering:sync-upstream-YYYYMMDD` into `arlo-engineering:main`.
+
+Why this matters:
+
+- A fork-owned branch can be updated, conflict-resolved, and re-pushed from this repository.
+- A PR whose head is `Dicklesworthstone:main` (or any other upstream-owned branch) may become impossible to repair from the fork when conflicts appear.
+- Using a fresh sync branch for each upstream merge keeps the history and review surface clear.
+
+Guidelines:
+
+- Do not merge `upstream/main` directly into `origin/main` locally.
+- Use a new sync branch for each attempt rather than recycling an old one.
+- Prefer a normal merge commit so the upstream sync point stays explicit.
+- If an existing sync PR is conflicted and its head branch is upstream-owned, open a replacement PR from a fork-owned sync branch and close or supersede the old PR.
+
 ### Prebuilt Binaries
 
 Prebuilt binaries are available for:
