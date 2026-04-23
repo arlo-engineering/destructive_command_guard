@@ -167,23 +167,58 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // Two safeguards on each safe subcommand:
+    //   1. `(?:\s+--?\S+(?:\s+\S+)?)*` only accepts flag-value pairs between
+    //      `docker` and the safe subcommand — so a destructive command like
+    //      `docker rm -f ps` (container literally named `ps`) can't match
+    //      `docker-ps` via the positional arg.
+    //   2. `(?=\s|$)` on the trailing side so a container name that starts
+    //      with the subcommand keyword (e.g. `ps-container`, `logs-archive`)
+    //      can't short-circuit destructive ops either.
     vec![
         // docker ps/images/logs are safe (read-only)
-        safe_pattern!("docker-ps", r"docker\s+ps"),
-        safe_pattern!("docker-images", r"docker\s+images"),
-        safe_pattern!("docker-logs", r"docker\s+logs"),
+        safe_pattern!(
+            "docker-ps",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+ps(?=\s|$)"
+        ),
+        safe_pattern!(
+            "docker-images",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+images(?=\s|$)"
+        ),
+        safe_pattern!(
+            "docker-logs",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+logs(?=\s|$)"
+        ),
         // docker inspect is safe
-        safe_pattern!("docker-inspect", r"docker\s+inspect"),
+        safe_pattern!(
+            "docker-inspect",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+inspect(?=\s|$)"
+        ),
         // docker build is generally safe
-        safe_pattern!("docker-build", r"docker\s+build"),
+        safe_pattern!(
+            "docker-build",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+build(?=\s|$)"
+        ),
         // docker pull is safe
-        safe_pattern!("docker-pull", r"docker\s+pull"),
+        safe_pattern!(
+            "docker-pull",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+pull(?=\s|$)"
+        ),
         // docker run is allowed (creates, doesn't destroy)
-        safe_pattern!("docker-run", r"docker\s+run"),
+        safe_pattern!(
+            "docker-run",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+run(?=\s|$)"
+        ),
         // docker exec is generally safe
-        safe_pattern!("docker-exec", r"docker\s+exec"),
+        safe_pattern!(
+            "docker-exec",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+exec(?=\s|$)"
+        ),
         // docker stats is safe
-        safe_pattern!("docker-stats", r"docker\s+stats"),
+        safe_pattern!(
+            "docker-stats",
+            r"docker\b(?:\s+--?\S+(?:\s+\S+)?)*\s+stats(?=\s|$)"
+        ),
         // Dry-run flags
         safe_pattern!("docker-dry-run", r"docker\s+.*--dry-run"),
     ]
@@ -195,7 +230,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // system prune - removes all unused data
         destructive_pattern!(
             "system-prune",
-            r"docker\s+system\s+prune",
+            r"docker\b.*?\bsystem\s+prune",
             "docker system prune removes ALL unused containers, networks, images. Use 'docker system df' to preview.",
             High,
             "docker system prune is Docker's most aggressive cleanup command. It removes:\n\n\
@@ -216,7 +251,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // volume prune - removes all unused volumes
         destructive_pattern!(
             "volume-prune",
-            r"docker\s+volume\s+prune",
+            r"docker\b.*?\bvolume\s+prune",
             "docker volume prune removes ALL unused volumes and their data permanently.",
             High,
             "docker volume prune permanently deletes ALL volumes not currently attached \
@@ -235,7 +270,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // network prune - removes all unused networks
         destructive_pattern!(
             "network-prune",
-            r"docker\s+network\s+prune",
+            r"docker\b.*?\bnetwork\s+prune",
             "docker network prune removes ALL unused networks.",
             High,
             "docker network prune removes all user-defined networks not used by any container. \
@@ -253,7 +288,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // image prune - removes unused images (Medium: only affects unused images)
         destructive_pattern!(
             "image-prune",
-            r"docker\s+image\s+prune",
+            r"docker\b.*?\bimage\s+prune",
             "docker image prune removes unused images. Use 'docker images' to review first.",
             Medium,
             "docker image prune removes 'dangling' images (untagged layers). \
@@ -270,7 +305,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // container prune - removes stopped containers (Medium: only affects stopped)
         destructive_pattern!(
             "container-prune",
-            r"docker\s+container\s+prune",
+            r"docker\b.*?\bcontainer\s+prune",
             "docker container prune removes ALL stopped containers.",
             Medium,
             "docker container prune removes all stopped containers. This is relatively \
@@ -287,7 +322,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // rm -f (force remove containers)
         destructive_pattern!(
             "rm-force",
-            r"docker\s+rm\s+.*(?:-[a-zA-Z0-9]*f|--force)",
+            r"docker\b.*?\brm\s+.*(?:-[a-zA-Z0-9]*f|--force)",
             "docker rm -f forcibly removes containers, potentially losing data.",
             High,
             "docker rm -f forcibly stops and removes containers. This is dangerous because:\n\n\
@@ -305,7 +340,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // rmi -f (force remove images)
         destructive_pattern!(
             "rmi-force",
-            r"docker\s+rmi\s+.*(?:-[a-zA-Z0-9]*f|--force)",
+            r"docker\b.*?\brmi\s+.*(?:-[a-zA-Z0-9]*f|--force)",
             "docker rmi -f forcibly removes images even if in use.",
             High,
             "docker rmi -f forcibly removes images, even if containers are using them. \
@@ -322,7 +357,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // volume rm
         destructive_pattern!(
             "volume-rm",
-            r"docker\s+volume\s+rm",
+            r"docker\b.*?\bvolume\s+rm",
             "docker volume rm permanently deletes volumes and their data.",
             High,
             "docker volume rm permanently deletes named volumes and all data stored in them. \
@@ -341,7 +376,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // stop/kill all containers pattern
         destructive_pattern!(
             "stop-all",
-            r"docker\s+(?:stop|kill)\s+\$\(docker\s+ps",
+            r"docker\b.*?\b(?:stop|kill)\s+\$\(docker\s+ps",
             "Stopping/killing all containers can disrupt services. Be specific about which containers.",
             High,
             "This pattern stops or kills ALL running containers on the system. \
@@ -366,6 +401,37 @@ mod tests {
     use crate::packs::test_helpers::*;
 
     #[test]
+    fn docker_patterns_match_with_global_flags() {
+        // Same class bug as cloud packs: Docker CLI global flags
+        // (`--context`, `--host`, `--config`, `--debug`, `--log-level`,
+        // `--tls*`) between `docker` and the subcommand break every
+        // `docker\s+<sub>` pattern. Multi-context operators (users of
+        // remote Docker daemons, testing against staging + prod)
+        // regularly use `--context`, so this is mainline.
+        let pack = create_pack();
+        assert_blocks(
+            &pack,
+            "docker --context prod volume rm critical-vol",
+            "volume",
+        );
+        assert_blocks(
+            &pack,
+            "docker --host ssh://prod-host system prune --all",
+            "prune",
+        );
+        assert_blocks(
+            &pack,
+            "docker --config /tmp/dc --context prod rm -f prod-db",
+            "forcibly removes",
+        );
+        assert_blocks(
+            &pack,
+            "docker --log-level debug --context prod image prune --all",
+            "prune",
+        );
+    }
+
+    #[test]
     fn test_rm_force() {
         let pack = create_pack();
         assert_blocks(&pack, "docker rm -f container", "forcibly removes");
@@ -384,5 +450,57 @@ mod tests {
         assert_blocks(&pack, "docker rmi -nf image", "forcibly removes"); // Combined flags (no-prune + force)
 
         assert_allows(&pack, "docker rmi image");
+    }
+
+    #[test]
+    fn container_named_as_safe_subcommand_does_not_short_circuit() {
+        // If a container is literally named the same as a safe subcommand
+        // (e.g. `ps`, `logs`, `build`, `run`), the destructive rule must
+        // still win. Previously `docker rm -f ps` matched `docker-ps` safe
+        // via the positional arg.
+        let pack = create_pack();
+        let matched = pack
+            .check("docker rm -f ps")
+            .expect("container literally named `ps` must still trigger rm-force");
+        assert_eq!(matched.name, Some("rm-force"));
+
+        let matched = pack
+            .check("docker rm --force logs")
+            .expect("container literally named `logs` must still trigger rm-force");
+        assert_eq!(matched.name, Some("rm-force"));
+
+        let matched = pack
+            .check("docker rmi -f build")
+            .expect("image literally named `build` must still trigger rmi-force");
+        assert_eq!(matched.name, Some("rmi-force"));
+    }
+
+    #[test]
+    fn safe_subcommand_inside_container_name_does_not_short_circuit() {
+        // Container names often contain subcommand keywords as substrings:
+        //   ps-container, logs-archive, build-server, run-worker
+        // Without the `(?=\s|$)` anchor, `docker rm -f ps-container` would
+        // match the `docker-ps` safe pattern and bypass the `rm-force`
+        // destructive rule.
+        let pack = create_pack();
+        let matched = pack
+            .check("docker rm -f ps-container")
+            .expect("destructive rm -f must still block when name contains ps");
+        assert_eq!(matched.name, Some("rm-force"));
+
+        let matched = pack
+            .check("docker rmi -f build-server-img")
+            .expect("destructive rmi -f must still block when name contains build");
+        assert_eq!(matched.name, Some("rmi-force"));
+
+        let matched = pack
+            .check("docker volume rm logs-archive")
+            .expect("destructive volume rm must still block when name contains logs");
+        assert_eq!(matched.name, Some("volume-rm"));
+
+        // Bare subcommands still short-circuit as safe.
+        assert_allows(&pack, "docker ps");
+        assert_allows(&pack, "docker logs mycontainer");
+        assert_allows(&pack, "docker build -t app .");
     }
 }

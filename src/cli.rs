@@ -245,6 +245,23 @@ pub enum Command {
     #[command(name = "allow-once")]
     AllowOnce(AllowOnceCommand),
 
+    /// Issue a short-lived permit that unblocks `git checkout --` and
+    /// `git restore` for the next recovery step.
+    ///
+    /// Use this when `git pull --rebase` has failed partway (e.g., after a
+    /// stash pop left the worktree messy) and the next step really is to
+    /// discard the mess. The permit is scoped to the current repository's
+    /// `.dcg/` state dir, expires after a short TTL (default 120s), and is
+    /// consumed on the first matching allow. During an active rebase
+    /// (`.git/rebase-merge/` or `.git/rebase-apply/` present) the permit is
+    /// not needed — dcg unblocks automatically in that state.
+    #[command(name = "rebase-recover")]
+    RebaseRecover {
+        /// Permit time-to-live in seconds (default 120, max 600).
+        #[arg(long, value_name = "SECONDS")]
+        ttl: Option<u64>,
+    },
+
     /// Install the hook into Claude Code settings
     #[command(name = "install")]
     Install {
@@ -2054,6 +2071,9 @@ pub fn run_command(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Some(Command::AllowOnce(cmd)) => {
             handle_allow_once_command(&config, &cmd)?;
         }
+        Some(Command::RebaseRecover { ttl }) => {
+            handle_rebase_recover(ttl, cli.robot || std::env::var("DCG_ROBOT").is_ok())?;
+        }
         Some(Command::Scan(scan)) => {
             handle_scan_command(&config, scan, verbosity)?;
         }
@@ -3833,7 +3853,7 @@ fn test_command(
             }
             TestFormat::Toon => {
                 let json = serde_json::to_value(&output).expect("TestOutput should serialize");
-                let encoded = toon_rust::encode(&json, None).expect("TOON encoding should succeed");
+                let encoded = toon::encode(json, None);
                 println!("{encoded}");
             }
             TestFormat::Pretty => unreachable!("handled above"),
@@ -10985,6 +11005,71 @@ fn handle_allowlist_command(action: AllowlistAction) -> Result<(), Box<dyn std::
 }
 
 #[allow(clippy::too_many_lines)]
+/// Handle `dcg rebase-recover` — issue a short-lived permit that unblocks
+/// `git checkout --` and `git restore` for the next recovery step.
+///
+/// The permit file lives in `.dcg/rebase-recovery-permit` at the repo
+/// root (anchored to the nearest `.git/`), expires after `ttl` seconds
+/// (default 120, hard-capped at 600 via the rebase_recovery module), and
+/// is consumed after one successful allow.
+fn handle_rebase_recover(
+    ttl: Option<u64>,
+    robot_mode: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use crate::rebase_recovery::{
+        DEFAULT_PERMIT_TTL_SECS, MAX_PERMIT_TTL_SECS, is_rebase_in_progress, set_permit,
+    };
+
+    let cwd = std::env::current_dir().map_err(|e| format!("Cannot read current directory: {e}"))?;
+    let ttl_secs = ttl.unwrap_or(DEFAULT_PERMIT_TTL_SECS);
+    if ttl_secs == 0 {
+        return Err("ttl must be at least 1 second".into());
+    }
+    let effective_ttl = ttl_secs.min(MAX_PERMIT_TTL_SECS);
+    let path = set_permit(&cwd, effective_ttl)?;
+
+    let rebase_active = is_rebase_in_progress(&cwd);
+
+    if robot_mode {
+        let status = if rebase_active {
+            "rebase_in_progress"
+        } else {
+            "permit_issued"
+        };
+        println!(
+            r#"{{"status":"{status}","permit_path":"{}","ttl_secs":{effective_ttl},"rebase_in_progress":{rebase_active}}}"#,
+            path.display()
+                .to_string()
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+        );
+        return Ok(());
+    }
+
+    println!(
+        "dcg rebase-recovery permit issued\n  \
+         path:   {}\n  \
+         ttl:    {effective_ttl}s\n  \
+         scope:  core.git:checkout-discard, checkout-ref-discard, restore-worktree, restore-worktree-explicit\n\n\
+         Next: retry `git checkout -- .` or `git restore <paths>` in this repo.\n\
+         The permit is single-shot — the first matching allow consumes it.",
+        path.display()
+    );
+    if rebase_active {
+        println!(
+            "\nNote: a rebase is already in progress (`.git/rebase-merge/` or `.git/rebase-apply/`).\n\
+             The recovery patterns are already auto-allowed in this state, so the permit is redundant\n\
+             here but harmless."
+        );
+    }
+    if effective_ttl < ttl_secs {
+        eprintln!(
+            "Warning: requested ttl={ttl_secs}s exceeds max ({MAX_PERMIT_TTL_SECS}s); clamped to {effective_ttl}s."
+        );
+    }
+    Ok(())
+}
+
 fn handle_allow_once_command(
     config: &Config,
     cmd: &AllowOnceCommand,
@@ -14990,9 +15075,27 @@ exclude = ["target/**"]
         };
 
         let json = serde_json::to_value(&payload).expect("serialize payload to json");
-        let toon = toon_rust::encode(&json, None).expect("encode TOON payload");
-        let decoded = toon_rust::decode(&toon, None).expect("decode TOON payload");
-        assert_eq!(decoded, json);
+        let toon_encoded = toon::encode(json.clone(), None);
+        let decoded: serde_json::Value = toon::try_decode(&toon_encoded, None)
+            .expect("decode TOON payload")
+            .into();
+        // tru normalizes integers to f64 in roundtrip; compare canonically.
+        fn canon(v: &serde_json::Value) -> serde_json::Value {
+            match v {
+                serde_json::Value::Number(n) => n
+                    .as_f64()
+                    .and_then(serde_json::Number::from_f64)
+                    .map_or(serde_json::Value::Null, serde_json::Value::Number),
+                serde_json::Value::Array(a) => {
+                    serde_json::Value::Array(a.iter().map(canon).collect())
+                }
+                serde_json::Value::Object(o) => serde_json::Value::Object(
+                    o.iter().map(|(k, v)| (k.clone(), canon(v))).collect(),
+                ),
+                other => other.clone(),
+            }
+        }
+        assert_eq!(canon(&decoded), canon(&json));
     }
 
     // ========================================================================

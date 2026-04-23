@@ -606,9 +606,13 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
 
     vec![
         // rm -rf on root or home paths (CRITICAL - catastrophic, never allow)
+        // Target set covers:
+        //   - literal `/` or `~` (optionally quoted/backslash-escaped)
+        //   - `$HOME` and `${HOME}` (optionally quoted), which the shell
+        //     expands to the user's home directory before rm sees it
         destructive_pattern!(
             "rm-rf-root-home",
-            r"rm\s+-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*\s+[/~]|rm\s+-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*\s+[/~]",
+            r#"rm\s+-[a-zA-Z]*[rR][a-zA-Z]*f[a-zA-Z]*\s+['"\\]?(?:[/~]|\$\{?HOME\b)|rm\s+-[a-zA-Z]*f[a-zA-Z]*[rR][a-zA-Z]*\s+['"\\]?(?:[/~]|\$\{?HOME\b)"#,
             "rm -rf on root or home paths is EXTREMELY DANGEROUS. This command will NOT be executed. Ask the user to run it manually if truly needed.",
             Critical,
             "This command would recursively delete files starting from the root filesystem (/) \
@@ -623,6 +627,32 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              rm -rf /path/to/specific/directory\n\n\
              Always preview what would be deleted first:\n  \
              find /path/to/directory -type f | head -20",
+            RM_RF_ROOT_HOME_SUGGESTIONS
+        ),
+        // Same root/home catastrophe but with SEPARATE flags (`rm -r -f /`,
+        // `rm -f -r /`). The previous pattern only caught the combined `-rf`
+        // form. Without this, `rm -r -f /` fell through to the general
+        // `rm-r-f-separate` rule (High) instead of being attributed as
+        // Critical root deletion.
+        destructive_pattern!(
+            "rm-r-f-separate-root-home",
+            r#"rm\s+(-[a-zA-Z]+\s+)*-[rR]\s+(-[a-zA-Z]+\s+)*-f\s+['"\\]?(?:[/~]|\$\{?HOME\b)|rm\s+(-[a-zA-Z]+\s+)*-f\s+(-[a-zA-Z]+\s+)*-[rR]\s+['"\\]?(?:[/~]|\$\{?HOME\b)"#,
+            "rm with separate -r -f flags targeting root or home is EXTREMELY DANGEROUS.",
+            Critical,
+            "Separate `-r -f` flags on `/` or `~` have identical effect to `rm -rf /`: \
+             recursive, forced, silent deletion of the entire filesystem or home directory.\n\n\
+             There is NO recovery without backups. Run only if truly intended.",
+            RM_RF_ROOT_HOME_SUGGESTIONS
+        ),
+        // Same root/home catastrophe but with LONG flags
+        // (`rm --recursive --force /`, `rm --force --recursive /`).
+        destructive_pattern!(
+            "rm-recursive-force-root-home",
+            r#"rm\s+.*--recursive.*--force\s+['"\\]?(?:[/~]|\$\{?HOME\b)|rm\s+.*--force.*--recursive\s+['"\\]?(?:[/~]|\$\{?HOME\b)"#,
+            "rm --recursive --force targeting root or home is EXTREMELY DANGEROUS.",
+            Critical,
+            "The long-flag form has identical effect to `rm -rf /`: recursive, forced, \
+             silent deletion. Run only if truly intended.",
             RM_RF_ROOT_HOME_SUGGESTIONS
         ),
         // General rm -rf (caught after safe patterns) - High because temp paths are allowed
@@ -713,6 +743,55 @@ mod tests {
         assert_blocks_with_severity(&pack, "rm -rf /home", Severity::Critical);
         assert_blocks_with_severity(&pack, "rm -rf ~/", Severity::Critical);
         assert_blocks_with_pattern(&pack, "rm -rf /", "rm-rf-root-home");
+        // Quoted / or ~ — shell evaluates to / or ~; must still block.
+        assert_blocks_with_severity(&pack, "rm -rf \"/\"", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf '/'", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf \"~/\"", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf '/etc'", Severity::Critical);
+    }
+
+    #[test]
+    fn test_rm_separate_and_long_flag_root_is_critical() {
+        // Previously only the combined `-rf` form produced Critical severity
+        // on root/home targets. `-r -f /` and `--recursive --force /` were
+        // attributed to the general High-severity rules, understating the
+        // catastrophic nature of wiping the root filesystem.
+        let pack = create_pack();
+        assert_blocks_with_severity(&pack, "rm -r -f /", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -f -r /", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -r -f /etc", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -r -f ~/", Severity::Critical);
+        assert_blocks_with_pattern(&pack, "rm -r -f /", "rm-r-f-separate-root-home");
+
+        assert_blocks_with_severity(&pack, "rm --recursive --force /", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm --force --recursive /", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm --recursive --force /etc", Severity::Critical);
+        assert_blocks_with_pattern(
+            &pack,
+            "rm --recursive --force /",
+            "rm-recursive-force-root-home",
+        );
+
+        // Quoted forms too
+        assert_blocks_with_severity(&pack, "rm -r -f \"/\"", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm --recursive --force '/'", Severity::Critical);
+        // Backslash-escaped root: shell unescapes \/ to / and \~ to ~.
+        assert_blocks_with_severity(&pack, "rm -rf \\/", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf \\~", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -r -f \\/", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm --recursive --force \\/", Severity::Critical);
+        // $HOME variants: shell expands to the user's home directory.
+        assert_blocks_with_severity(&pack, "rm -rf $HOME", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf \"$HOME\"", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf ${HOME}", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -rf \"${HOME}\"", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm -r -f $HOME", Severity::Critical);
+        assert_blocks_with_severity(&pack, "rm --recursive --force $HOME", Severity::Critical);
+
+        // Non-root targets retain their existing (High) severity, so we don't
+        // accidentally upgrade innocuous cleanup commands.
+        assert_blocks_with_severity(&pack, "rm -r -f ./build", Severity::High);
+        assert_blocks_with_severity(&pack, "rm --recursive --force ./build", Severity::High);
     }
 
     #[test]

@@ -78,7 +78,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              Safer alternatives:\n\
              - git stash: Save changes temporarily, restore later with 'git stash pop'\n\
              - git diff <path>: Review what would be lost before discarding\n\n\
-             Preview changes first:\n  git diff -- <path>",
+             Preview changes first:\n  git diff -- <path>\n\n\
+             Recovering from a failed `git pull --rebase`?\n\
+             Run `dcg rebase-recover` in this repo, then retry the command. This issues a \
+             short-lived, single-shot permit that unblocks this rule only. A rebase already \
+             in progress (`.git/rebase-merge/` or `.git/rebase-apply/` present) auto-allows \
+             the same rule without a permit.",
             &const {
                 [
                     PatternSuggestion::new(
@@ -134,7 +139,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              - git restore --staged <path>: Only unstage, keeps working directory changes\n\
              - git stash: Save all changes temporarily\n\
              - git diff <path>: Review what would be lost\n\n\
-             Preview changes first:\n  git diff <path>",
+             Preview changes first:\n  git diff <path>\n\n\
+             Recovering from a failed `git pull --rebase`?\n\
+             Run `dcg rebase-recover` in this repo, then retry the command. This issues a \
+             short-lived, single-shot permit that unblocks this rule only. A rebase already \
+             in progress (`.git/rebase-merge/` or `.git/rebase-apply/` present) auto-allows \
+             the same rule without a permit.",
             &const {
                 [
                     PatternSuggestion::new(
@@ -283,9 +293,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
             }
         ),
         // force push can destroy remote history (CRITICAL - affects shared history)
+        // `push-force-long` — `.*--force` would match `--force` embedded in a
+        // branch name like `feature--force` (false positive). Use the
+        // `(?:\S+\s+)*` token walker so we only reach a fresh arg token.
         destructive_pattern!(
             "push-force-long",
-            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+.*--force(?![-a-z])",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+(?:\S+\s+)*--force(?![-a-z])",
             "Force push can destroy remote history. Use --force-with-lease if necessary.",
             Critical,
             "git push --force overwrites remote history with your local history. This can \
@@ -316,9 +329,16 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
                 ]
             }
         ),
+        // `push-force-short` — catch combined forms (`-uf`, `-fv`, `-vf`,
+        // `-fuvq`) that evaluate to `-f` at parse time. The token-walker
+        // `(?:\S+\s+)*` skips unrelated args (branches/remotes) WITHOUT
+        // descending into hyphens inside a single token — so a branch name
+        // like `feature-f` or `hotfix-f` no longer false-matches a flag
+        // containing `f`. `--force-with-lease` is safer and is already
+        // excluded by the `push-force-long` rule (which takes precedence).
         destructive_pattern!(
             "push-force-short",
-            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+.*-f\b",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*push\s+(?:\S+\s+)*-[a-zA-Z]*f[a-zA-Z]*\b",
             "Force push (-f) can destroy remote history. Use --force-with-lease if necessary.",
             Critical,
             "git push -f (short for --force) overwrites remote history with your local history. \
@@ -348,10 +368,15 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
                 ]
             }
         ),
-        // branch -D/-f force deletes or overwrites without checks (Medium: recoverable via reflog)
+        // branch -D/-f force deletes or overwrites without checks (Medium: recoverable via reflog).
+        // `(?:\S+\s+)*` consumes intermediate flags/branches TOKEN-BY-TOKEN
+        // before the short-flag match — so combined forms (`-Dr`, `-vD`,
+        // `-fv`, `-vdf`) are caught, but hyphens inside branch names
+        // like `merged-feature` (which contain "-f") don't false-match
+        // because hyphens aren't token boundaries.
         destructive_pattern!(
             "branch-force-delete",
-            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*branch\s+.*(?:-D\b|--force\b|-f\b)",
+            r"(?:^|[^[:alnum:]_-])git\s+(?:\S+\s+)*branch\s+(?:\S+\s+)*(?:-[a-zA-Z]*[Df][a-zA-Z]*\b|--force\b)",
             "git branch -D/--force deletes branches without checks. Recoverable via 'git reflog'.",
             Medium,
             "git branch -D force-deletes a branch without checking if it has been merged. \
@@ -528,6 +553,37 @@ mod tests {
             "git push --force origin main",
             "destroy remote history",
         );
+
+        // Combined short-flag forms that resolve to `-f` at parse time.
+        assert_blocks_with_severity(&pack, "git push -uf origin main", Severity::Critical);
+        assert_blocks_with_severity(&pack, "git push -fv origin main", Severity::Critical);
+        assert_blocks_with_severity(&pack, "git push -fuv origin main", Severity::Critical);
+        assert_blocks_with_severity(&pack, "git push -vf origin main", Severity::Critical);
+
+        // Branch names that happen to contain `-f` must NOT be treated as a
+        // force flag.
+        assert!(
+            pack.check("git push origin feature-f").is_none(),
+            "branch named `feature-f` must not be treated as a force flag"
+        );
+        assert!(
+            pack.check("git push origin hotfix-fallback").is_none(),
+            "branch named `hotfix-fallback` must not be treated as a force flag"
+        );
+        // Branch name literally containing `--force` must not be treated as
+        // the long force flag.
+        assert!(
+            pack.check("git push origin feature--force").is_none(),
+            "branch name `feature--force` must not trigger push-force-long"
+        );
+
+        // --force-with-lease (safer) must NOT trigger push-force-short.
+        // (push-force-long's negative lookahead already excludes it.)
+        assert!(
+            pack.check("git push --force-with-lease origin main")
+                .is_none(),
+            "--force-with-lease is the safer alternative and must not be blocked"
+        );
     }
 
     #[test]
@@ -572,6 +628,36 @@ mod tests {
         assert_blocks_with_pattern(&pack, "git branch -D feature", "branch-force-delete");
         assert_blocks_with_pattern(&pack, "git branch --force feature", "branch-force-delete");
         assert_blocks_with_pattern(&pack, "git branch -f feature", "branch-force-delete");
+
+        // Combined short-flag forms (previously missed) — all map to
+        // force-delete semantics:
+        //   -Dr   (force-delete a remote-tracking branch)
+        //   -vD   (verbose + force-delete)
+        //   -fv   (force + verbose)
+        //   -vdf  (verbose + delete + force)
+        assert_blocks_with_pattern(
+            &pack,
+            "git branch -Dr origin/feature",
+            "branch-force-delete",
+        );
+        assert_blocks_with_pattern(&pack, "git branch -vD feature", "branch-force-delete");
+        assert_blocks_with_pattern(&pack, "git branch -fv feature", "branch-force-delete");
+        assert_blocks_with_pattern(&pack, "git branch -vdf feature", "branch-force-delete");
+
+        // Safe cases: lowercase `-d` alone deletes only if merged. Listing
+        // flags without D/f must NOT trigger the rule.
+        assert!(
+            pack.check("git branch -d merged-feature").is_none(),
+            "non-forcing `-d` should not be blocked"
+        );
+        assert!(
+            pack.check("git branch -vd merged-feature").is_none(),
+            "non-forcing `-vd` should not be blocked"
+        );
+        assert!(
+            pack.check("git branch -a").is_none(),
+            "listing all branches must not be blocked"
+        );
     }
 
     #[test]

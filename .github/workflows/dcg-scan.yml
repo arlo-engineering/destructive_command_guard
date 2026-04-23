@@ -38,22 +38,26 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Fetch enough history for git diff
           fetch-depth: 0
 
-      - name: Download dcg binary
+      - name: Install dcg binary
         run: |
+          DEST_DIR="$RUNNER_TEMP/dcg-bin"
+          mkdir -p "$DEST_DIR"
+          echo "$DEST_DIR" >> "$GITHUB_PATH"
+
           if [ "$DCG_VERSION" = "latest" ]; then
             RELEASE_URL="https://api.github.com/repos/arlo-engineering/destructive_command_guard/releases/latest"
           else
             RELEASE_URL="https://api.github.com/repos/arlo-engineering/destructive_command_guard/releases/tags/$DCG_VERSION"
           fi
 
-          # Get download URL for Linux x86_64 binary
+          # Get the Linux x86_64 release archive URL.
           DOWNLOAD_URL=$(curl -sL "$RELEASE_URL" | \
-            jq -r '.assets[] | select(.name | contains("linux") and contains("x86_64")) | .browser_download_url' | \
+            jq -r '.assets[] | select(.name == "dcg-x86_64-unknown-linux-gnu.tar.xz") | .browser_download_url' | \
             head -1)
 
           if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
@@ -65,9 +69,23 @@ jobs:
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           else
             echo "Downloading dcg from: $DOWNLOAD_URL"
-            curl -sL "$DOWNLOAD_URL" -o dcg
-            chmod +x dcg
-            sudo mv dcg /usr/local/bin/
+            ARCHIVE_PATH="$RUNNER_TEMP/dcg-x86_64-unknown-linux-gnu.tar.xz"
+            EXTRACT_DIR="$RUNNER_TEMP/dcg-extract"
+            curl -sL "$DOWNLOAD_URL" -o "$ARCHIVE_PATH"
+            mkdir -p "$EXTRACT_DIR"
+            tar -xf "$ARCHIVE_PATH" -C "$EXTRACT_DIR"
+
+            BIN_PATH="$EXTRACT_DIR/dcg"
+            if [ ! -x "$BIN_PATH" ]; then
+              BIN_PATH="$EXTRACT_DIR/dcg-x86_64-unknown-linux-gnu/dcg"
+            fi
+
+            if [ ! -x "$BIN_PATH" ]; then
+              echo "::error::dcg binary not found after extracting release archive"
+              exit 1
+            fi
+
+            install -m 0755 "$BIN_PATH" "$DEST_DIR/dcg"
           fi
 
       - name: Verify dcg installation
@@ -135,7 +153,7 @@ jobs:
 
       - name: Upload scan results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dcg-scan-results
           path: scan-results.json
@@ -153,7 +171,7 @@ jobs:
   #     - name: Build dcg
   #       run: cargo install destructive_command_guard --locked
   #     - name: Upload binary
-  #       uses: actions/upload-artifact@v4
+  #       uses: actions/upload-artifact@v7
   #       with:
   #         name: dcg-binary
   #         path: ~/.cargo/bin/dcg

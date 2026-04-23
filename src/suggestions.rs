@@ -447,6 +447,14 @@ fn register_core_filesystem_suggestions(m: &mut HashMap<&'static str, Vec<Sugges
 
     // Register for all actual pattern names from filesystem.rs
     m.insert("core.filesystem:rm-rf-root-home", rm_rf_suggestions.clone());
+    m.insert(
+        "core.filesystem:rm-r-f-separate-root-home",
+        rm_rf_suggestions.clone(),
+    );
+    m.insert(
+        "core.filesystem:rm-recursive-force-root-home",
+        rm_rf_suggestions.clone(),
+    );
     m.insert("core.filesystem:rm-rf-general", rm_rf_suggestions.clone());
     m.insert("core.filesystem:rm-r-f-separate", rm_rf_suggestions.clone());
     m.insert("core.filesystem:rm-recursive-force-long", rm_rf_suggestions);
@@ -1516,6 +1524,8 @@ mod tests {
         // These must match actual pattern names from src/packs/core/filesystem.rs
         let expected_rules = [
             "core.filesystem:rm-rf-root-home",
+            "core.filesystem:rm-r-f-separate-root-home",
+            "core.filesystem:rm-recursive-force-root-home",
             "core.filesystem:rm-rf-general",
             "core.filesystem:rm-r-f-separate",
             "core.filesystem:rm-recursive-force-long",

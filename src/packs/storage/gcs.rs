@@ -26,37 +26,53 @@ pub fn create_pack() -> Pack {
 }
 
 fn create_safe_patterns() -> Vec<SafePattern> {
+    // `(?=\s|$)` on each subcommand so a bucket/path containing the
+    // subcommand keyword as a substring (e.g. `gs://ls-archive`,
+    // `gs://cp-mirror/data`) doesn't short-circuit destructive gsutil
+    // or gcloud storage ops via the safe rule.
     vec![
         // gsutil read operations
-        safe_pattern!("gsutil-ls", r"gsutil\s+(?:-[a-zA-Z]+\s+)*ls\b"),
-        safe_pattern!("gsutil-cat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cat\b"),
-        safe_pattern!("gsutil-stat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*stat\b"),
-        safe_pattern!("gsutil-du", r"gsutil\s+(?:-[a-zA-Z]+\s+)*du\b"),
-        safe_pattern!("gsutil-hash", r"gsutil\s+(?:-[a-zA-Z]+\s+)*hash\b"),
-        safe_pattern!("gsutil-version", r"gsutil\s+(?:-[a-zA-Z]+\s+)*version\b"),
-        safe_pattern!("gsutil-help", r"gsutil\s+(?:-[a-zA-Z]+\s+)*help\b"),
+        safe_pattern!("gsutil-ls", r"gsutil\s+(?:-[a-zA-Z]+\s+)*ls(?=\s|$)"),
+        safe_pattern!("gsutil-cat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cat(?=\s|$)"),
+        safe_pattern!("gsutil-stat", r"gsutil\s+(?:-[a-zA-Z]+\s+)*stat(?=\s|$)"),
+        safe_pattern!("gsutil-du", r"gsutil\s+(?:-[a-zA-Z]+\s+)*du(?=\s|$)"),
+        safe_pattern!("gsutil-hash", r"gsutil\s+(?:-[a-zA-Z]+\s+)*hash(?=\s|$)"),
+        safe_pattern!(
+            "gsutil-version",
+            r"gsutil\s+(?:-[a-zA-Z]+\s+)*version(?=\s|$)"
+        ),
+        safe_pattern!("gsutil-help", r"gsutil\s+(?:-[a-zA-Z]+\s+)*help(?=\s|$)"),
         // gsutil copy (read-only use)
-        safe_pattern!("gsutil-cp", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cp\b"),
+        safe_pattern!("gsutil-cp", r"gsutil\s+(?:-[a-zA-Z]+\s+)*cp(?=\s|$)"),
         // gcloud storage read operations
         safe_pattern!(
             "gcloud-storage-buckets-list",
-            r"gcloud\s+storage\s+buckets\s+list\b"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+buckets\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-buckets-describe",
-            r"gcloud\s+storage\s+buckets\s+describe\b"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+buckets\s+describe(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-objects-list",
-            r"gcloud\s+storage\s+objects\s+list\b"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+objects\s+list(?=\s|$)"
         ),
         safe_pattern!(
             "gcloud-storage-objects-describe",
-            r"gcloud\s+storage\s+objects\s+describe\b"
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+objects\s+describe(?=\s|$)"
         ),
-        safe_pattern!("gcloud-storage-ls", r"gcloud\s+storage\s+ls\b"),
-        safe_pattern!("gcloud-storage-cat", r"gcloud\s+storage\s+cat\b"),
-        safe_pattern!("gcloud-storage-cp", r"gcloud\s+storage\s+cp\b"),
+        safe_pattern!(
+            "gcloud-storage-ls",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+ls(?=\s|$)"
+        ),
+        safe_pattern!(
+            "gcloud-storage-cat",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+cat(?=\s|$)"
+        ),
+        safe_pattern!(
+            "gcloud-storage-cp",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+cp(?=\s|$)"
+        ),
     ]
 }
 
@@ -65,7 +81,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gsutil bucket removal
         destructive_pattern!(
             "gsutil-rb",
-            r"gsutil\s+(?:-[a-zA-Z]+\s+)*rb\b",
+            r"gsutil\b.*?\brb(?=\s|$)",
             "gsutil rb removes a GCS bucket.",
             Critical,
             "Removing a GCS bucket deletes the bucket and potentially all objects within it. \
@@ -76,10 +92,12 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
              - gsutil -m cp -r gs://bucket ./backup: Backup contents locally\n\
              - Enable object versioning before testing deletions"
         ),
-        // gsutil object removal
+        // gsutil object removal. Require `rm` to be followed by whitespace
+        // or end-of-string so `rm.txt` filenames in unrelated gsutil
+        // invocations don't false-match.
         destructive_pattern!(
             "gsutil-rm",
-            r"gsutil\s+(?:-[a-zA-Z]+\s+)*rm\b",
+            r"gsutil\b.*?\brm(?=\s|$)",
             "gsutil rm deletes objects from GCS.",
             High,
             "Deleting GCS objects permanently removes data unless versioning is enabled. \
@@ -93,7 +111,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gsutil rsync with delete
         destructive_pattern!(
             "gsutil-rsync-delete",
-            r"gsutil\s+(?:-[a-zA-Z]+\s+)*rsync\b.*\s+-d\b",
+            r"gsutil\b.*?\brsync\b.*\s+-d\b",
             "gsutil rsync -d deletes destination objects not in source.",
             High,
             "The -d flag with gsutil rsync deletes destination objects that don't exist \
@@ -107,7 +125,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gcloud storage bucket deletion
         destructive_pattern!(
             "gcloud-storage-buckets-delete",
-            r"gcloud\s+storage\s+buckets\s+delete\b",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+buckets\s+delete\b",
             "gcloud storage buckets delete removes a GCS bucket.",
             Critical,
             "Deleting a GCS bucket removes the bucket configuration and all objects within it \
@@ -121,7 +139,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gcloud storage object deletion
         destructive_pattern!(
             "gcloud-storage-objects-delete",
-            r"gcloud\s+storage\s+objects\s+delete\b",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+objects\s+delete\b",
             "gcloud storage objects delete removes objects from GCS.",
             High,
             "Deleting GCS objects permanently removes data. Without object versioning, \
@@ -135,7 +153,7 @@ fn create_destructive_patterns() -> Vec<DestructivePattern> {
         // gcloud storage rm
         destructive_pattern!(
             "gcloud-storage-rm",
-            r"gcloud\s+storage\s+rm\b",
+            r"gcloud\b(?:\s+--?\S+(?:\s+\S+)?)*\s+storage\s+rm\b",
             "gcloud storage rm removes objects from GCS.",
             High,
             "The rm command deletes objects and can recursively remove entire bucket \
@@ -198,6 +216,17 @@ mod tests {
         assert_blocks_with_pattern(&pack, "gsutil -f rb gs://bucket", "gsutil-rb");
         assert_blocks_with_pattern(&pack, "gsutil rm gs://bucket/file", "gsutil-rm");
         assert_blocks_with_pattern(&pack, "gsutil -m rm -r gs://bucket", "gsutil-rm");
+
+        // Should NOT match: `rb` and `rm` appearing as substrings in filenames
+        // of unrelated subcommands (e.g. `gsutil cors set rb.json`).
+        assert!(
+            pack.check("gsutil cors set rb.json").is_none(),
+            "gsutil cors set rb.json should not false-match gsutil-rb"
+        );
+        assert!(
+            pack.check("gsutil cp rm.txt gs://bucket/").is_none(),
+            "gsutil cp rm.txt should not false-match gsutil-rm"
+        );
         assert_blocks_with_pattern(
             &pack,
             "gsutil rsync -d gs://src gs://dst",
